@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define MODULO 101
+
 typedef struct {
      uint64_t value;
      uint64_t modulo;
@@ -11,6 +13,10 @@ u64_fe u64_fe_new(uint64_t value, uint64_t modulo) {
      fe.value = value % modulo;
      fe.modulo = modulo;
      return fe;
+}
+
+u64_fe f101(uint64_t n) {
+     return u64_fe_new(n, MODULO);
 }
 
 u64_fe u64_fe_one(uint64_t modulo) {
