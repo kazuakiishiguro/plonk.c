@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "utils.h"
+#include "fe.h"
 
 typedef struct {
      u64_fe x, y;

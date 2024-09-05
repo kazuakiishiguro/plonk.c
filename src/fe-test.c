@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
-#include "utils.h"
+#include "fe.h"
 
 void test_base() {
   u64_fe zero = f101(0);
