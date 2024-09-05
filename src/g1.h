@@ -81,3 +81,8 @@ g1_p g1_p_add(g1_p a, g1_p b) {
      }
 }
 
+g1_p g1_p_sub_assign(g1_p a) {
+     if (a.infinite) return a;
+     u64_fe neg_y = u64_fe_sub_assign(&a.y);
+     return g1_p_new(a.x.value, neg_y.value);
+}
