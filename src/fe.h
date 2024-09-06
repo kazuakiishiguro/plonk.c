@@ -75,7 +75,7 @@ u64_fe u64_fe_sub(const u64_fe *a, const u64_fe *b) {
      return u64_fe_new((a->value + a->modulo - b->value) % a->modulo, a->modulo);
 }
 
-u64_fe u64_fe_sub_assign(u64_fe *a) {
+u64_fe u64_fe_sub_assign(const u64_fe *a) {
      return u64_fe_new(a->modulo - a->value, a->modulo);
 }
 
