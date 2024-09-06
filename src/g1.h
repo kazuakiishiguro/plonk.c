@@ -69,20 +69,41 @@ g1_p g1_p_add_diff(g1_p a, g1_p b) {
 
 // https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication#G1P_addition
 g1_p g1_p_add(g1_p a, g1_p b) {
-     if (a.infinite) return b;
-     if (b.infinite) return a;
-     g1_p neg_b = g1_p_new(b.x.value, u64_fe_sub_assign(&b.y).value);
-     if (a.x.value == neg_b.x.value && a.y.value == neg_b.y.value) return g1_p_identity();
+    if (a.infinite) return b;
+    if (b.infinite) return a;
+    g1_p neg_b = g1_p_new(b.x.value, u64_fe_sub_assign(&b.y).value);
+    if (a.x.value == neg_b.x.value && a.y.value == neg_b.y.value) return g1_p_identity();
 
-     if (a.x.value == b.x.value && a.y.value == b.y.value) {
-       return g1_p_double(a);
-     } else {
-       return g1_p_add_diff(a, b);
-     }
+    if (a.x.value == b.x.value && a.y.value == b.y.value) {
+      return g1_p_double(a);
+    } else {
+      return g1_p_add_diff(a, b);
+    }
 }
 
 g1_p g1_p_sub_assign(g1_p a) {
-     if (a.infinite) return a;
-     u64_fe neg_y = u64_fe_sub_assign(&a.y);
-     return g1_p_new(a.x.value, neg_y.value);
+    if (a.infinite) return a;
+    u64_fe neg_y = u64_fe_sub_assign(&a.y);
+    return g1_p_new(a.x.value, neg_y.value);
+}
+
+g1_p g1_p_mul(g1_p a, u64_fe b) {
+    uint64_t val = b.value;
+    if (val == 0 || a.infinite == true)
+      return g1_p_identity();
+    int flag = 0;
+    g1_p result;
+    while (val > 0) {
+      if (val % 2 == 1) {
+	if (flag) {
+	  result = g1_p_add(result, a);
+	} else {
+	  result = a;
+	  flag = 1;
+	}
+      }
+      val >>= 1;
+      a = g1_p_double(a);
+    }
+    return result;
 }
