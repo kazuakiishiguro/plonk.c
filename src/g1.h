@@ -106,3 +106,7 @@ g1_p g1_p_mul(g1_p a, u64_fe b) {
     }
     return result;
 }
+
+u64_fe g1_p_generator_subgroup_size() {
+  return f101(17);
+}
