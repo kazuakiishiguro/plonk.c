@@ -3,8 +3,8 @@
 
 #define ASSERT_G2(p1, p2)			      \
     do {					      \
-        assert((p1).x.value == (p2).x.value);	      \
-        assert((p1).y.value == (p2).y.value);	      \
+        assert((p1).a.value == (p2).a.value);	      \
+        assert((p1).b.value == (p2).b.value);	      \
     } while (0)
 
 void test_g2_vectors() {
