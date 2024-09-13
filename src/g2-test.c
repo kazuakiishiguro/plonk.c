@@ -12,9 +12,11 @@ void test_g2_vectors() {
      g2_p two = g2_p_add(&g, &g);
      g2_p three = g2_p_add(&two, &g);
      g2_p four = g2_p_add(&two, &two);
+     g2_p six = g2_p_add(&four, &two);
 
      ASSERT_G2(g2_p_new(90, 82), two);
      ASSERT_G2(g2_p_add(&three, &g), four);
+     ASSERT_G2(g2_p_mul(g, f101(6)), six);
 }
 
 int main () {

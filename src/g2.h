@@ -63,3 +63,22 @@ g2_p g2_p_add(const g2_p *a, const g2_p *b) {
   }
   return g2_p_new(x.value, y.value);
 }
+
+g2_p g2_p_mul(g2_p a, u64_fe b) {
+     uint64_t val = b.value;
+     int flag = 0;
+     g2_p result;
+     while (val > 0) {
+       if (val % 2 == 1) {
+	 if (flag) {
+	   result = g2_p_add(&result, &a);
+	 } else {
+	   result = a;
+	   flag = 1;
+	 }
+       }
+       val >>= 1;
+       a = g2_p_add(&a, &a);
+     }
+     return result;
+}
