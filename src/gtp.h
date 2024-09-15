@@ -30,3 +30,26 @@ gtp gtp_mul(gtp *base, gtp *rhs) {
     u64_fe b = u64_fe_add(&base_mul_rhs_b, &base_mul_rhs_a);
     return gtp_new(a, b);
 }
+
+gtp gtp_pow(gtp *base, uint64_t exp) {
+    gtp p;
+    if (exp >= 101) {
+      gtp tmp = gtp_pow(base, exp / 101);
+      p = gtp_sub_assign(&tmp);
+      exp %= 101;
+    } else {
+      p = gtp_new(f101(1), f101(0));
+    }
+
+    gtp cur = *base;
+
+    // mongomery reduction
+    while (exp > 0) {
+      if (exp % 2 == 1)
+	p = gtp_mul(&p, &cur);
+      exp >>= 1;
+      cur = gtp_mul(&cur, &cur);
+    }
+
+    return p;
+}
