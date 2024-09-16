@@ -35,10 +35,10 @@ void test_g1_vectors() {
      ASSERT_G1(g1_p_new(18, 52), nine);
      ASSERT_G1(g1_p_new(1, 99), sixteen);
      ASSERT_G1(g1_p_new(1, 2), neg_sixteen);
-     ASSERT_G1(g1_p_mul(g, f101(1)), g);
-     ASSERT_G1(g1_p_mul(g, f101(2)), two);
-     ASSERT_G1(g1_p_mul(g, f101(2)), two);
-     ASSERT_G1(g1_p_mul(g, f101(6)), six);
+     ASSERT_G1(g1_p_mul(&g, 1), g);
+     ASSERT_G1(g1_p_mul(&g, 2), two);
+     ASSERT_G1(g1_p_mul(&g, 2), two);
+     ASSERT_G1(g1_p_mul(&g, 6), six);
 }
 
 int main() {
