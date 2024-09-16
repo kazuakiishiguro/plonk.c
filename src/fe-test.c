@@ -22,17 +22,17 @@ void test_vector() {
   u64_fe one = f101(1);
   u64_fe hundred = f101(100);
 
-  u64_fe neg_one = u64_fe_sub_assign(&one);
+  u64_fe neg_one = u64_fe_neg(&one);
   assert(hundred.value == neg_one.value);
 
   u64_fe two = f101(2);
   u64_fe div_result = u64_fe_div(&one, &two);
-  u64_fe neg_div_result = u64_fe_sub_assign(&div_result);
+  u64_fe neg_div_result = u64_fe_neg(&div_result);
   assert(f101(50).value == neg_div_result.value);
 
   u64_fe five = f101(5);
   div_result = u64_fe_div(&one, &five);
-  neg_div_result = u64_fe_sub_assign(&div_result);
+  neg_div_result = u64_fe_neg(&div_result);
   assert(f101(20).value == neg_div_result.value);
 
   u64_fe zero_pow = u64_fe_pow(&hundred, 0);

@@ -15,7 +15,7 @@ void test_gtp_vectors() {
      pow_6 = gtp_pow(&pow_6, 6);
      ASSERT_GTP(pow_6, gtp_new(f101(97), f101(89)));
      gtp base = gtp_new(f101(93), f101(76));
-     gtp neg = gtp_sub_assign(&base);
+     gtp neg = gtp_neg(&base);
      gtp pow_101 = gtp_pow(&base, 101);
      gtp pow_102 = gtp_pow(&base, 102);
      gtp neg_mul_base = gtp_mul(&neg, &base);

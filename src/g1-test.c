@@ -9,19 +9,19 @@
 
 void test_g1_vectors() {
      g1_p g = g1_p_generator();
-     g1_p neg_g = g1_p_sub_assign(&g);
+     g1_p neg_g = g1_p_neg(&g);
      g1_p two = g1_p_add(&g, &g);
-     g1_p neg_two = g1_p_sub_assign(&two);
+     g1_p neg_two = g1_p_neg(&two);
      g1_p three = g1_p_add(&two, &g);
      g1_p four = g1_p_add(&two, &two);
-     g1_p neg_four = g1_p_sub_assign(&four);
+     g1_p neg_four = g1_p_neg(&four);
      g1_p five = g1_p_add(&four, &g);
      g1_p six = g1_p_add(&five, &g);
      g1_p eight = g1_p_add(&four, &four);
-     g1_p neg_eight = g1_p_sub_assign(&eight);
+     g1_p neg_eight = g1_p_neg(&eight);
      g1_p nine = g1_p_add(&eight, &g);
      g1_p sixteen = g1_p_add(&eight, &eight);
-     g1_p neg_sixteen = g1_p_sub_assign(&sixteen);
+     g1_p neg_sixteen = g1_p_neg(&sixteen);
 
      ASSERT_G1(g1_p_new(1, 99), neg_g);
      ASSERT_G1(g1_p_new(68, 74), two);

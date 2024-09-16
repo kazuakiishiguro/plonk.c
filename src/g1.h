@@ -70,7 +70,7 @@ g1_p g1_p_add_diff(const g1_p *a, const g1_p *b) {
 g1_p g1_p_add(const g1_p *a, const g1_p *b) {
     if (a->infinite) return *b;
     if (b->infinite) return *a;
-    g1_p neg_b = g1_p_new(b->x.value, u64_fe_sub_assign(&b->y).value);
+    g1_p neg_b = g1_p_new(b->x.value, u64_fe_neg(&b->y).value);
     if (a->x.value == neg_b.x.value && a->y.value == neg_b.y.value) return g1_p_identity();
 
     if (a->x.value == b->x.value && a->y.value == b->y.value) {
@@ -80,9 +80,9 @@ g1_p g1_p_add(const g1_p *a, const g1_p *b) {
     }
 }
 
-g1_p g1_p_sub_assign(g1_p *a) {
+g1_p g1_p_neg(g1_p *a) {
     if (a->infinite) return *a;
-    u64_fe neg_y = u64_fe_sub_assign(&a->y);
+    u64_fe neg_y = u64_fe_neg(&a->y);
     return g1_p_new(a->x.value, neg_y.value);
 }
 

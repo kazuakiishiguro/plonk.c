@@ -22,8 +22,8 @@ uint64_t g2_p_embedding_degree() {
      return 2;
 }
 
-g2_p g2_p_sub_assign(g2_p *p) {
-  u64_fe neg_y = u64_fe_sub_assign(&p ->b);
+g2_p g2_p_neg(g2_p *p) {
+  u64_fe neg_y = u64_fe_neg(&p ->b);
   return g2_p_new(p->a.value, neg_y.value);
 }
 
@@ -37,7 +37,7 @@ g2_p g2_p_add(const g2_p *base, const g2_p *rhs) {
     u64_fe div = u64_fe_mul(&two, &base->b);
     u64_fe m_u = u64_fe_div(&num, &div);
     u64_fe m_u_pow = u64_fe_pow(&m_u, 2);
-    u64_fe neg_two = u64_fe_sub_assign(&two);
+    u64_fe neg_two = u64_fe_neg(&two);
     u64_fe u_pow_inv = u64_fe_inv(&neg_two);
     u64_fe m_pow_2 = u64_fe_mul(&m_u_pow, &u_pow_inv);
     u64_fe two_mul_a_x = u64_fe_mul(&two, &base->a);
@@ -52,7 +52,7 @@ g2_p g2_p_add(const g2_p *base, const g2_p *rhs) {
     u64_fe div = u64_fe_sub(&rhs->a, &base->a);
     u64_fe lambda_u = u64_fe_div(&num, &div);
     u64_fe two = f101(2);
-    u64_fe neg_two = u64_fe_sub_assign(&two);
+    u64_fe neg_two = u64_fe_neg(&two);
     u64_fe lambda_u_pow = u64_fe_pow(&lambda_u, 2);
     lambda_u_pow = u64_fe_mul(&lambda_u_pow, &neg_two);
     x = u64_fe_sub(&lambda_u_pow, &base->a);

@@ -13,8 +13,8 @@ gtp gtp_new(u64_fe a, u64_fe b) {
      return p;
 }
 
-gtp gtp_sub_assign(gtp *p) {
-     u64_fe neg_y = u64_fe_sub_assign(&p->b);
+gtp gtp_neg(gtp *p) {
+     u64_fe neg_y = u64_fe_neg(&p->b);
      return gtp_new(p->a, neg_y);
 }
 
@@ -35,7 +35,7 @@ gtp gtp_pow(gtp *base, uint64_t exp) {
     gtp p;
     if (exp >= 101) {
       gtp tmp = gtp_pow(base, exp / 101);
-      p = gtp_sub_assign(&tmp);
+      p = gtp_neg(&tmp);
       exp %= 101;
     } else {
       p = gtp_new(f101(1), f101(0));

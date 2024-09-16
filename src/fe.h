@@ -63,7 +63,7 @@ u64_fe u64_fe_mul(const u64_fe *a, const u64_fe *b) {
   return r;
 }
 
-u64_fe u64_fe_sub_assign(const u64_fe *a) {
+u64_fe u64_fe_neg(const u64_fe *a) {
   u64_fe r;
   r.value = (MODULO - a->value) % MODULO;
   return r;
