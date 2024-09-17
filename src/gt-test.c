@@ -1,5 +1,5 @@
 #include <assert.h>
-#include "gtp.h"
+#include "gt.h"
 
 #define ASSERT_GTP(p1, p2)			      \
     do {					      \
