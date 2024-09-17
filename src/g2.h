@@ -2,74 +2,71 @@
 #include "fe.h"
 
 typedef struct {
-     u64_fe a, b;
+  u8_fe x, y;
 } g2_p;
 
-g2_p g2_p_new(uint64_t a, uint64_t b) {
-     g2_p p = {
-	  f101(a),
-	  f101(b),
-     };
-
-     return p;
+g2_p g2_p_new(uint64_t x, uint64_t y) {
+  g2_p point = {
+    .x = f101(x),
+    .y = f101(y),
+  };
+  return point;
 }
 
 g2_p g2_p_generator() {
-     return g2_p_new(36, 31);
+  return g2_p_new(36, 31);
 }
 
 uint64_t g2_p_embedding_degree() {
-     return 2;
+  return 2;
 }
 
 g2_p g2_p_neg(g2_p *p) {
-  u64_fe neg_y = u64_fe_neg(&p ->b);
-  return g2_p_new(p->a.value, neg_y.value);
+  u8_fe neg_y = u8_fe_neg(p->y);
+  return g2_p_new(p->x.value, neg_y.value);
 }
 
-g2_p g2_p_add(const g2_p *base, const g2_p *rhs) {
-  u64_fe x, y;
-  if (&base->a == &rhs->a && &base->b == &rhs->b) {
-    u64_fe two = f101(2);
-    u64_fe three = f101(3);
-    u64_fe a_x_pow = u64_fe_pow(&base->a, 2);
-    u64_fe num = u64_fe_mul(&three, &a_x_pow);
-    u64_fe div = u64_fe_mul(&two, &base->b);
-    u64_fe m_u = u64_fe_div(&num, &div);
-    u64_fe m_u_pow = u64_fe_pow(&m_u, 2);
-    u64_fe neg_two = u64_fe_neg(&two);
-    u64_fe u_pow_inv = u64_fe_inv(&neg_two);
-    u64_fe m_pow_2 = u64_fe_mul(&m_u_pow, &u_pow_inv);
-    u64_fe two_mul_a_x = u64_fe_mul(&two, &base->a);
-    x = u64_fe_sub(&m_pow_2, &two_mul_a_x);
-    u64_fe inner = u64_fe_mul(&three, &base->a);
-    u64_fe inner_sub_m_pow_2 = u64_fe_sub(&inner, &m_pow_2);
-    u64_fe tmp = u64_fe_mul(&u_pow_inv, &m_u);
-    tmp = u64_fe_mul(&tmp, &inner_sub_m_pow_2);
-    y = u64_fe_sub(&tmp, &base->b);
+g2_p g2_p_add(const g2_p *p, const g2_p *q) {
+  u8_fe x, y;
+
+  if (u8_fe_equal(p->x, q->x) && u8_fe_equal(p->y, q->y)) {
+    u8_fe two = f101(2);
+    u8_fe three = f101(3);
+    u8_fe x1 = p->x;
+    u8_fe y1 = p->y;
+    u8_fe x_sq = u8_fe_mul(x1, x1);
+    u8_fe num = u8_fe_mul(three, x_sq);
+    u8_fe div = u8_fe_mul(two, y1);
+    u8_fe m = u8_fe_div(num, div);
+    u8_fe m_sq= u8_fe_mul(m, m);
+    u8_fe neg_two = u8_fe_neg(two);
+    u8_fe neg_two_inv = u8_fe_inv(neg_two);
+    u8_fe m_sq_neg_two = u8_fe_mul(m_sq, neg_two_inv);
+    x = u8_fe_sub(m_sq_neg_two, u8_fe_mul(two, x1));
+    y = u8_fe_sub(u8_fe_mul(u8_fe_mul(neg_two_inv, m), u8_fe_sub(u8_fe_mul(three, x1), m_sq_neg_two)), y1);
   } else {
-    u64_fe num = u64_fe_sub(&rhs->b, &base->b);
-    u64_fe div = u64_fe_sub(&rhs->a, &base->a);
-    u64_fe lambda_u = u64_fe_div(&num, &div);
-    u64_fe two = f101(2);
-    u64_fe neg_two = u64_fe_neg(&two);
-    u64_fe lambda_u_pow = u64_fe_pow(&lambda_u, 2);
-    lambda_u_pow = u64_fe_mul(&lambda_u_pow, &neg_two);
-    x = u64_fe_sub(&lambda_u_pow, &base->a);
-    x = u64_fe_sub(&x, &rhs->a);
-    y = u64_fe_sub(&base->a, &x);
-    y = u64_fe_mul(&lambda_u, &y);
-    y = u64_fe_sub(&y, &base->b);
+    u8_fe x1 = p->x;
+    u8_fe y1 = p->y;
+    u8_fe x2 = q->x;
+    u8_fe y2 = q->y;
+    u8_fe num = u8_fe_sub(y2, y1);
+    u8_fe div = u8_fe_sub(x2, x1);
+    u8_fe m = u8_fe_div(num, div);
+    u8_fe two = f101(2);
+    u8_fe neg_two = u8_fe_neg(two);
+    u8_fe m_sq = u8_fe_mul(m, m);
+    u8_fe m_sq_neg_two = u8_fe_mul(m_sq, neg_two);
+    x = u8_fe_sub(u8_fe_sub(m_sq_neg_two, x1), x2);
+    y = u8_fe_sub(u8_fe_mul(m, u8_fe_sub(x1, x)), y1);
   }
   return g2_p_new(x.value, y.value);
 }
 
-g2_p g2_p_mul(g2_p base, u64_fe rhs) {
-     uint64_t val = rhs.value;
+g2_p g2_p_mul(g2_p base, uint64_t scalar) {
      int flag = 0;
      g2_p result;
-     while (val > 0) {
-       if (val % 2 == 1) {
+     while (scalar > 0) {
+       if (scalar % 2 == 1) {
 	 if (flag) {
 	   result = g2_p_add(&result, &base);
 	 } else {
@@ -77,7 +74,7 @@ g2_p g2_p_mul(g2_p base, u64_fe rhs) {
 	   flag = 1;
 	 }
        }
-       val >>= 1;
+       scalar >>= 1;
        base = g2_p_add(&base, &base);
      }
      return result;
