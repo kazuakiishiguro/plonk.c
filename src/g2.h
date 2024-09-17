@@ -1,3 +1,6 @@
+#ifndef G2_H
+#define G2_H
+
 #include <stdint.h>
 #include "fe.h"
 
@@ -79,3 +82,5 @@ g2_p g2_p_mul(g2_p base, uint64_t scalar) {
      }
      return result;
 }
+
+#endif

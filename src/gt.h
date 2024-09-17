@@ -1,3 +1,6 @@
+#ifndef GT_H
+#define GT_H
+
 #include <stdint.h>
 #include "fe.h"
 
@@ -46,3 +49,5 @@ gtp gtp_pow(gtp *base, uint64_t exp) {
 
   return p;
 }
+
+#endif

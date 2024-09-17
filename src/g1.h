@@ -1,3 +1,6 @@
+#ifndef G1_H
+#define G1_H
+
 #include <stdbool.h>
 #include <stdint.h>
 #include "fe.h"
@@ -98,3 +101,9 @@ g1_p g1_p_mul(const g1_p *point, uint64_t scalar) {
   }
   return result;
 }
+
+u8_fe g1_p_generator_subgroup_size() {
+  return f101(17);
+}
+
+#endif

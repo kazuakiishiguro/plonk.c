@@ -1,3 +1,6 @@
+#ifndef FE_H
+#define FE_H
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -77,3 +80,5 @@ u8_fe u8_fe_div(u8_fe a, u8_fe b) {
   u8_fe inv_b = u8_fe_inv(b);
   return u8_fe_mul(a, inv_b);
 }
+
+#endif
