@@ -3,48 +3,42 @@
 #include "fe.h"
 
 void test_base() {
-  u64_fe zero = f101(0);
-  u64_fe one = f101(1);
-  u64_fe hundred = f101(100);
-  u64_fe four = f101(4);
-  u64_fe twelve = f101(12);
+  u8_fe zero = f101(0);
+  u8_fe one = f101(1);
+  u8_fe hundred = f101(100);
+  u8_fe four = f101(4);
+  u8_fe twelve = f101(12);
 
-  assert(f101(200).value == u64_fe_add(&hundred, &hundred).value);
-  assert(f101(100).value == u64_fe_sub(&zero, &one).value);
-  assert(f101(0).value == u64_fe_div(&one, &zero).value);
+  assert(u8_fe_equal(f101(200), u8_fe_add(hundred, hundred)));
+  assert(u8_fe_equal(f101(100), u8_fe_sub(zero, one)));
+  assert(u8_fe_equal(f101(0), u8_fe_div(one, zero)));
 
-  u64_fe four_div_twelve = u64_fe_div(&four, &twelve);
-  u64_fe r = u64_fe_mul(&twelve, &four_div_twelve);
-  assert(four.value == r.value);
+  u8_fe r = u8_fe_mul(twelve, u8_fe_div(four, twelve));
+  assert(u8_fe_equal(four, r));
 }
 
 void test_vector() {
-  u64_fe one = f101(1);
-  u64_fe hundred = f101(100);
+  u8_fe one = f101(1);
+  u8_fe hundred = f101(100);
+  assert(u8_fe_equal(one, u8_fe_pow(hundred, 0)));
 
-  u64_fe neg_one = u64_fe_neg(&one);
-  assert(hundred.value == neg_one.value);
+  u8_fe neg_one = u8_fe_neg(one);
+  assert(u8_fe_equal(hundred, neg_one));
 
-  u64_fe two = f101(2);
-  u64_fe div_result = u64_fe_div(&one, &two);
-  u64_fe neg_div_result = u64_fe_neg(&div_result);
-  assert(f101(50).value == neg_div_result.value);
+  u8_fe two = f101(2);
+  u8_fe neg_div_r = u8_fe_neg(u8_fe_div(one, two));
+  assert(u8_fe_equal(f101(50), neg_div_r));
 
-  u64_fe five = f101(5);
-  div_result = u64_fe_div(&one, &five);
-  neg_div_result = u64_fe_neg(&div_result);
-  assert(f101(20).value == neg_div_result.value);
+  u8_fe five = f101(5);
+  assert(u8_fe_equal(f101(20), u8_fe_neg(u8_fe_div(one, five))));
 
-  u64_fe zero_pow = u64_fe_pow(&hundred, 0);
-  assert(one.value == zero_pow.value);
+  u8_fe hundred_sq = u8_fe_mul(hundred, hundred);
+  u8_fe two_sq = u8_fe_mul(hundred, hundred);
+  assert(u8_fe_equal(hundred_sq, two_sq));
 
-  u64_fe hundred_sq = u64_fe_mul(&hundred, &hundred);
-  u64_fe two_pow = u64_fe_pow(&hundred, 2);
-  assert(hundred_sq.value == two_pow.value);
-
-  u64_fe hundred_cube = u64_fe_mul(&hundred_sq, &hundred);
-  u64_fe three_pow = u64_fe_pow(&hundred, 3);
-  assert(hundred_cube.value == three_pow.value);
+  u8_fe hundred_cube = u8_fe_mul(hundred_sq, hundred);
+  u8_fe three_pow = u8_fe_pow(hundred, 3);
+  assert(u8_fe_equal(hundred_cube, three_pow));
 }
 
 int main() {
