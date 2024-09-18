@@ -10,13 +10,18 @@ typedef struct {
   uint8_t value;
 } u8_fe;
 
-u8_fe u8_fe_new(uint8_t value) {
+u8_fe u8_fe_new(int64_t value) {
+  int64_t tmp = value % MODULO;
+  if (tmp < 0) {
+    tmp += MODULO;
+  }
+
   u8_fe fe;
-  fe.value = value % MODULO;
+  fe.value = (uint8_t)tmp;
   return fe;
 }
 
-u8_fe f101(uint64_t n) {
+u8_fe f101(int64_t n) {
   return u8_fe_new(n);
 }
 

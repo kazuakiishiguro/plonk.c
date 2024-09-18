@@ -105,3 +105,16 @@ void poly_free(poly *p) {
   }
   p->len = 0;
 }
+
+poly poly_z(const u8_fe *points, size_t len) {
+  poly acc = poly_one();
+  for (size_t i = 0; i < len; i++) {
+    u8_fe neg_x = u8_fe_neg(points[i]);
+    u8_fe coeffs[] = {neg_x, u8_fe_new(1)};
+    poly term = poly_new(coeffs, 2);
+    poly temp = poly_mul(&acc, &term);
+    poly_free(&acc);
+    acc = temp;
+  }
+  return acc;
+}

@@ -101,8 +101,20 @@ void test_poly_mul() {
   poly_free(&expected);
 }
 
+void test_poly_z() {
+  u8_fe points[] = {f101(1), f101(5)};
+  poly z = poly_z(points, 2);
+  u8_fe c[] = {f101(5), f101(-6), f101(1)};
+  poly expected = poly_new(c, 3);
+  ASSERT_POLY(z, expected);
+
+  poly_free(&z);
+  poly_free(&expected);
+}
+
 int main() {
   test_poly_add();
   test_poly_sub();
+  test_poly_z();
   return 0;
 }
