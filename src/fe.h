@@ -72,10 +72,10 @@ u8_fe u8_fe_pow(u8_fe field, uint64_t exp) {
   u8_fe base = field;
   while (exp > 0) {
     if (is_odd(exp)) {
-      r.value = (r.value * base.value) % MODULO;
+      r = u8_fe_mul(r, base);
     }
     exp = exp >> 1;
-    base.value = (base.value * base.value) % MODULO;
+    base = u8_fe_mul(base, base);
   }
   return r;
 }
