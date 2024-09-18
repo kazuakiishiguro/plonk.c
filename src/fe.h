@@ -61,8 +61,9 @@ u8_fe u8_fe_mul(u8_fe a, u8_fe b) {
 }
 
 u8_fe u8_fe_neg(u8_fe a) {
+  if (a.value == 0) return u8_fe_new(0);
   u8_fe r;
-  r.value = (MODULO - a.value) % MODULO;
+  r.value = MODULO - a.value;
   return r;
 }
 
