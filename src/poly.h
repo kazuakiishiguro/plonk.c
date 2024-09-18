@@ -80,6 +80,24 @@ poly poly_sub(const poly *a, const poly *b) {
   return p;
 }
 
+poly poly_mul(const poly *a, const poly *b) {
+  size_t result_len = a->len + b->len - 1;
+  u8_fe *coeffs = (u8_fe *)calloc(result_len, sizeof(u8_fe));
+  if (!coeffs) {
+    fprintf(stderr, "Memory allocation failed in poly_mul\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < a->len; i++) {
+    for (size_t j = 0; j < b->len; j++) {
+      u8_fe product = u8_fe_mul(a->coeffs[i], b->coeffs[j]);
+      coeffs[i + j] = u8_fe_add(coeffs[i + j], product);
+    }
+  }
+  poly p = poly_new(coeffs, result_len);
+  free(coeffs);
+  return p;
+}
+
 void poly_free(poly *p) {
   if (p->coeffs) {
     free(p->coeffs);

@@ -85,6 +85,22 @@ void test_poly_sub() {
   poly_free(&expected);
 }
 
+void test_poly_mul() {
+  u8_fe ca[] = {f101(5), f101(0), f101(10), f101(6)};
+  poly a = poly_new(ca, 4);
+  u8_fe cb[] = {f101(1), f101(2), f101(4)};
+  poly b = poly_new(cb, 3);
+  poly product = poly_mul(&a, &b);
+  u8_fe cexp[] = {f101(5), f101(10), f101(30), f101(26), f101(52), f101(24)};
+  poly expected = poly_new(cexp, 6);
+  ASSERT_POLY(product, expected);
+
+  poly_free(&a);
+  poly_free(&b);
+  poly_free(&product);
+  poly_free(&expected);
+}
+
 int main() {
   test_poly_add();
   test_poly_sub();
