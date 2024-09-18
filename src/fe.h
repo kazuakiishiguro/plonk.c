@@ -38,22 +38,25 @@ bool u8_fe_equal(u8_fe a, u8_fe b) {
 }
 
 u8_fe u8_fe_add(u8_fe a, u8_fe b) {
+  uint16_t sum = a.value + b.value;
+  if (sum >= MODULO) sum -= MODULO;
   u8_fe r;
-  r.value = a.value + b.value;
-  if (r.value >= MODULO) r.value -= MODULO;
+  r.value = (uint8_t)sum;
   return r;
 }
 
 u8_fe u8_fe_sub(u8_fe a, u8_fe b) {
+  int16_t diff = (int16_t)a.value - (int16_t)b.value;
+  if (diff < 0) diff += MODULO;
   u8_fe r;
-  r.value = a.value + MODULO - b.value;
-  if (r.value >= MODULO) r.value -= MODULO;
+  r.value = (uint8_t)diff;
   return r;
 }
 
 u8_fe u8_fe_mul(u8_fe a, u8_fe b) {
+  uint16_t product = (uint16_t)a.value * (uint16_t)b.value;
   u8_fe r;
-  r.value = (a.value * b.value) % MODULO;
+  r.value = product % MODULO;
   return r;
 }
 
