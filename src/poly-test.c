@@ -65,7 +65,28 @@ void test_poly_add() {
   poly_free(&expected);
 }
 
+void test_poly_sub() {
+  u8_fe p123[] = {f101(1), f101(2), f101(3)};
+  poly a = poly_new(p123, 3);
+  poly diff = poly_sub(&a, &a);
+  poly expected = poly_zero();
+  ASSERT_POLY(diff, expected);
+
+  u8_fe p12[] = {f101(1), f101(2)};
+  poly b = poly_new(p12, 2);
+  diff = poly_sub(&a, &b);
+  u8_fe p003[] = {f101(0), f101(0), f101(3)};
+  expected = poly_new(p003, 3);
+  ASSERT_POLY(diff, expected);
+
+  poly_free(&a);
+  poly_free(&b);
+  poly_free(&diff);
+  poly_free(&expected);
+}
+
 int main() {
   test_poly_add();
+  test_poly_sub();
   return 0;
 }

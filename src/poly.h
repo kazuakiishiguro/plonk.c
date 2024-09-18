@@ -63,6 +63,23 @@ poly poly_add(const poly *a, const poly *b) {
   return p;
 }
 
+poly poly_sub(const poly *a, const poly *b) {
+  size_t max_len = (a->len > b->len) ? a->len : b->len;
+  u8_fe *coeffs = (u8_fe *)malloc(max_len * sizeof(u8_fe));
+  if (!coeffs) {
+    fprintf(stderr, "Memory allocation failed in poly_sub\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < max_len; i++) {
+    u8_fe a_coeff = (i < a->len) ? a->coeffs[i] : u8_fe_new(0);
+    u8_fe b_coeff = (i < b->len) ? b->coeffs[i] : u8_fe_new(0);
+    coeffs[i] = u8_fe_sub(a_coeff, b_coeff);
+  }
+  poly p = poly_new(coeffs, max_len);
+  free(coeffs);
+  return p;
+}
+
 void poly_free(poly *p) {
   if (p->coeffs) {
     free(p->coeffs);
