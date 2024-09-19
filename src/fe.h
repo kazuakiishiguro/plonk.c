@@ -25,6 +25,10 @@ u8_fe f101(int64_t n) {
   return u8_fe_new(n);
 }
 
+u8_fe u8_fe_zero() {
+  return u8_fe_new(0);
+}
+
 u8_fe u8_fe_one() {
   return u8_fe_new(1);
 }
