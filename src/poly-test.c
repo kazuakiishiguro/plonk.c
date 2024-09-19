@@ -101,6 +101,14 @@ void test_poly_mul() {
   poly_free(&expected);
 }
 
+void test_poly_eval() {
+  u8_fe coeffs[] = {f101(1), f101(2), f101(1)};
+  poly p = poly_new(coeffs, 3);
+  u8_fe eval = poly_eval(&p, f101(2));
+  u8_fe expected = f101(9);
+  u8_fe_equal(eval, expected);
+}
+
 void test_poly_z() {
   u8_fe points[] = {f101(1), f101(5)};
   poly z = poly_z(points, 2);
@@ -115,6 +123,7 @@ void test_poly_z() {
 int main() {
   test_poly_add();
   test_poly_sub();
+  test_poly_eval();
   test_poly_z();
   return 0;
 }
