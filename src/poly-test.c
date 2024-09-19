@@ -120,10 +120,25 @@ void test_poly_z() {
   poly_free(&expected);
 }
 
+void test_poly_lagrange() {
+  u8_fe x_points[] = {f101(1), f101(5), f101(7), f101(3)};
+  u8_fe y_points[] = {f101(2), f101(7), f101(9), f101(1)};
+  size_t num_points = sizeof(x_points) / sizeof(x_points[0]);
+  poly l = poly_lagrange(x_points, y_points, num_points);
+  for (size_t i = 0; i < num_points;  i++) {
+    u8_fe x = x_points[i];
+    u8_fe expected_y = y_points[i];
+    u8_fe actual_y =  poly_eval(&l, x);
+    assert(u8_fe_equal(actual_y, expected_y));
+  }
+  poly_free(&l);
+}
+
 int main() {
   test_poly_add();
   test_poly_sub();
   test_poly_eval();
   test_poly_z();
+  test_poly_lagrange();
   return 0;
 }

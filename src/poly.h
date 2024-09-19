@@ -98,6 +98,20 @@ poly poly_mul(const poly *a, const poly *b) {
   return p;
 }
 
+poly poly_scale(const poly *p, u8_fe scalar) {
+  u8_fe *coeffs = (u8_fe *)calloc(p->len, sizeof(u8_fe));
+  if (!coeffs) {
+    fprintf(stderr, "Memory allocation failed in poly_scale\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < p->len; i++) {
+    coeffs[i] = u8_fe_mul(p->coeffs[i], scalar);
+  }
+  poly result = poly_new(coeffs, p->len);
+  free(coeffs);
+  return result;
+}
+
 void poly_free(poly *p) {
   if (p->coeffs) {
     free(p->coeffs);
@@ -128,4 +142,36 @@ poly poly_z(const u8_fe *points, size_t len) {
     acc = temp;
   }
   return acc;
+}
+
+poly poly_lagrange(const u8_fe *x_points, const u8_fe *y_points, size_t len) {
+  poly l = poly_zero();
+  for (size_t j = 0; j < len; j++) {
+    poly l_j = poly_one();
+    for (size_t i = 0; i < len; i++) {
+      if (i != j) {
+        u8_fe denom = u8_fe_sub(x_points[j], x_points[i]);
+	u8_fe denom_inv = u8_fe_inv(denom);
+	if (denom_inv.value == 0) {
+	  fprintf(stderr, "Error: Lagrange polynomial x points must be unique\n");
+	  exit(EXIT_FAILURE);
+	}
+	u8_fe c = denom_inv;
+	u8_fe neg_cxi = u8_fe_neg(u8_fe_mul(c, x_points[i]));
+	u8_fe coeffs[] = {neg_cxi, c};
+	poly term = poly_new(coeffs, 2);
+	poly temp = poly_mul(&l_j, &term);
+	poly_free(&l_j);
+	l_j = temp;
+	poly_free(&term);
+      }
+    }
+    poly scaled_l_j = poly_scale(&l_j, y_points[j]);
+    poly temp_l = poly_add(&l, &scaled_l_j);
+    poly_free(&l);
+    poly_free(&l_j);
+    poly_free(&scaled_l_j);
+    l = temp_l;
+  }
+  return l;
 }
