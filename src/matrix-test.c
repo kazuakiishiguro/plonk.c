@@ -29,7 +29,24 @@ void test_matrix_add() {
   matrix_free(&expected);
 }
 
+void test_matrix_mul() {
+  u8_fe values_a[] = {f101(1), f101(2), f101(3), f101(4), f101(5), f101(6)};
+  u8_fe values_b[] = {f101(10), f101(11), f101(20), f101(21), f101(30), f101(31)};
+  matrix a = matrix_new(values_a, 2, 3);
+  matrix b = matrix_new(values_b, 3, 2);
+  matrix result = matrix_mul(&a, &b);
+  u8_fe values_expected[] = {f101(140), f101(146), f101(320), f101(335)};
+  matrix expected = matrix_new(values_expected, 2, 2);
+  matrix_equal(&result, &expected);
+
+  matrix_free(&a);
+  matrix_free(&b);
+  matrix_free(&result);
+  matrix_free(&expected);
+}
+
 int main() {
   test_matrix_add();
+  test_matrix_mul();
   return 0;
 }
