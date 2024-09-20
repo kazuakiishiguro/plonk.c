@@ -45,8 +45,21 @@ void test_matrix_mul() {
   matrix_free(&expected);
 }
 
+void test_matrix_inv() {
+  u8_fe values[] = {f101(1), f101(2), f101(3), f101(4)};
+  matrix mat = matrix_new(values, 2, 2);
+  matrix inv = matrix_inv(&mat);
+  matrix inv_inv = matrix_inv(&inv);
+  matrix_equal(&inv, &inv_inv);
+
+  matrix_free(&mat);
+  matrix_free(&inv);
+  matrix_free(&inv_inv);
+}
+
 int main() {
   test_matrix_add();
   test_matrix_mul();
+  test_matrix_inv();
   return 0;
 }
