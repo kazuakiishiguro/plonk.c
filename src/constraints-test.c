@@ -1,5 +1,7 @@
 #include "constraints.h"
 
+#define UNUSED_INDEX ((size_t)(-1))
+
 void test_expr() {
   // initialize variable map and gate list
   var_map vars;
@@ -52,7 +54,7 @@ void test_expr() {
 
   // add a gate to bind the result to zero
   gate bind_gate = gate_bind_to_zero();
-  gate_list_append(&gates, bind_gate, 0, 0, result_index);
+  gate_list_append(&gates, bind_gate, UNUSED_INDEX, UNUSED_INDEX, result_index);
 
   // print variable mappings
   printf("Variable mappings:\n");
@@ -73,13 +75,17 @@ void test_expr() {
     int q_m = (g.q_m.value <= MODULO / 2) ? g.q_m.value : g.q_m.value - MODULO;
     int q_c = (g.q_c.value <= MODULO / 2) ? g.q_c.value : g.q_c.value - MODULO;
 
+    const char *a_name = (a_idx != UNUSED_INDEX) ? vars.names[a_idx] : "(unused)";
+    const char *b_name = (b_idx != UNUSED_INDEX) ? vars.names[b_idx] : "(unused)";
+    const char *c_name = vars.names[c_idx];
+
     printf("Gate %zu: %d*a + %d*b + %d*c + %d*a*b + %d = 0\n",
 	   i, q_l, q_r, q_o, q_m, q_c);
 
     printf("Wires: a = %s, b = %s, c = %s\n",
-	   vars.names[a_idx],
-	   vars.names[b_idx],
-	   vars.names[c_idx]);
+	   a_name,
+	   b_name,
+	   c_name);
   }
 
   printf("\n");
