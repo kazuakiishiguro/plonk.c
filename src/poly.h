@@ -1,3 +1,6 @@
+#ifndef POLY_H
+#define POLY_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -98,6 +101,62 @@ poly poly_mul(const poly *a, const poly *b) {
   return p;
 }
 
+void poly_divide(const poly *numerator, const poly *denominator, poly *quotient, poly *remainder) {
+  // ensure the denominator is not zero
+  if (denominator->len == 0 || u8_fe_equal(denominator->coeffs[denominator->len - 1], u8_fe_new(0))) {
+    fprintf(stderr, "Division by zero polynomial in poly_divide\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // initialize quotient and remainder
+  size_t num_len = numerator->len;
+  size_t den_len = denominator->len;
+  u8_fe *quot_coeffs = (u8_fe *)calloc(num_len, sizeof(u8_fe));
+  u8_fe *rem_coeffs = (u8_fe *)calloc(num_len, sizeof(u8_fe));
+  if (!quot_coeffs || !rem_coeffs) {
+    fprintf(stderr, "Memory allocation failed in poly_divide\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // copy numerator coefficients to remainder
+  for (size_t i = 0; i < num_len; i++) {
+    rem_coeffs[i] = numerator->coeffs[i];
+  }
+
+  u8_fe den_lead_inv = u8_fe_inv(denominator->coeffs[den_len - 1]);
+
+  for (ssize_t i = num_len - 1; i >= (ssize_t)(den_len - 1); i--) {
+    // compute the coefficient for the current term of the quotient
+    u8_fe coeff = u8_fe_mul(rem_coeffs[i], den_lead_inv);
+    quot_coeffs[i - (den_len - 1)] = coeff;
+
+    // subtract the scaled denominator from the remainder
+    for (ssize_t j = 0; j < (ssize_t)den_len; j++) {
+      rem_coeffs[i - j] = u8_fe_sub(rem_coeffs[i - j], u8_fe_mul(coeff, denominator->coeffs[den_len - 1 - j]));
+    }
+  }
+
+  // remove leading zeros from quotient and remainder
+  size_t quot_len = num_len - den_len + 1;
+  while (quot_len > 0 && u8_fe_equal(quot_coeffs[quot_len - 1], u8_fe_new(0))) {
+    quot_len--;
+  }
+
+  size_t rem_len = den_len - 1;
+  while (rem_len > 0 && u8_fe_equal(rem_coeffs[rem_len - 1], u8_fe_new(0))) {
+    rem_len--;
+  }
+
+  // set the quotient and remainder polynomials
+  *quotient = poly_new(quot_coeffs, quot_len);
+  *remainder = poly_new(rem_coeffs, rem_len);
+
+  // clean up temporary arrays
+  free(quot_coeffs);
+  free(rem_coeffs);
+}
+
+
 poly poly_scale(const poly *p, u8_fe scalar) {
   u8_fe *coeffs = (u8_fe *)calloc(p->len, sizeof(u8_fe));
   if (!coeffs) {
@@ -109,6 +168,55 @@ poly poly_scale(const poly *p, u8_fe scalar) {
   }
   poly result = poly_new(coeffs, p->len);
   free(coeffs);
+  return result;
+}
+
+poly poly_shift(const poly *p, size_t shift) {
+  // Multiply polynomial by x^shift
+  size_t new_len = p->len + shift;
+  u8_fe *new_coeffs = (u8_fe *)calloc(new_len, sizeof(u8_fe));
+  if (!new_coeffs) {
+    fprintf(stderr, "Memory allocation failed in poly_shift\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < p->len; i++) {
+    new_coeffs[i + shift] = p->coeffs[i];
+  }
+  poly result = poly_new(new_coeffs, new_len);
+  free(new_coeffs);
+  return result;
+}
+
+poly poly_slice(const poly *p, size_t start, size_t end) {
+  if (start >= end || end > p->len) {
+    fprintf(stderr, "Invalid slice indices in poly_slice\n");
+    exit(EXIT_FAILURE);
+  }
+  size_t new_len = end - start;
+  u8_fe *new_coeffs = (u8_fe *)malloc(new_len * sizeof(u8_fe));
+  if (!new_coeffs) {
+    fprintf(stderr, "Memory allocation failed in poly_slice\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < new_len; i++) {
+    new_coeffs[i] = p->coeffs[start + i];
+  }
+  poly result = poly_new(new_coeffs, new_len);
+  free(new_coeffs);
+  return result;
+}
+
+poly poly_negate(const poly *p) {
+  u8_fe *neg_coeffs = (u8_fe *)malloc(p->len * sizeof(u8_fe));
+  if (!neg_coeffs) {
+    fprintf(stderr, "Memory allocation failed in poly_negate\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < p->len; i++) {
+    neg_coeffs[i] = u8_fe_neg(p->coeffs[i]);
+  }
+  poly result = poly_new(neg_coeffs, p->len);
+  free(neg_coeffs);
   return result;
 }
 
@@ -175,3 +283,5 @@ poly poly_lagrange(const u8_fe *x_points, const u8_fe *y_points, size_t len) {
   }
   return l;
 }
+
+#endif // POLY_H
