@@ -142,6 +142,34 @@ constraints constraints_new(gate *gates, size_t num_gates, copy_of *c_a, copy_of
   return cons;
 }
 
+
+bool constraints_satisfy(const constraints *c, const assignments *a) {
+  size_t n = c->num_constraints;
+  for (size_t i = 0; i < n; i ++) {
+    // compute lhs = (q_l[i] * a[i]) + (q_r[i] * b[i]) + (q_o[i] * c[i])
+    //             + (q_m[i] * a[i] * b[i]) + q_c[i]
+    u8_fe lhs = u8_fe_zero();
+    u8_fe term1 = u8_fe_mul(c->q_l[i], a->a[i]);
+    u8_fe term2 = u8_fe_mul(c->q_r[i], a->b[i]);
+    u8_fe term3 = u8_fe_mul(c->q_o[i], a->c[i]);
+    u8_fe a_b = u8_fe_mul(a->a[i], a->b[i]);
+    u8_fe term4 = u8_fe_mul(c->q_m[i], a_b);
+
+    lhs = u8_fe_add(lhs, term1);
+    lhs = u8_fe_add(lhs, term2);
+    lhs = u8_fe_add(lhs, term3);
+    lhs = u8_fe_add(lhs, term4);
+    lhs = u8_fe_add(lhs, c->q_c[i]);
+
+    // check if lhs is zero
+    if (!u8_fe_equal(lhs, u8_fe_zero())) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void constraints_free(constraints *cons) {
   free(cons->q_l);
   free(cons->q_r);

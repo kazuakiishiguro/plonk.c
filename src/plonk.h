@@ -139,11 +139,6 @@ void plonk_free(plonk *p) {
   poly_free(&p->z_h_x);
 }
 
-bool constraints_satisfy(const constraints *c, const assignments *a) {
-  // tmp
-  return true;
-}
-
 void copy_constraints_to_roots(const plonk *p, const copy_of *cp, size_t len, u8_fe *sigma) {
   for (size_t i = 0; i < len; i++) {
     size_t idx = cp[i].index - 1;
