@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "constraints.h"
 
 #define UNUSED_INDEX ((size_t)(-1))
@@ -104,7 +106,63 @@ void test_expr() {
   free(c);         // c
 }
 
+void test_constraints_satisfy() {
+  // simple constraint system representing c = a + b
+  size_t n = 1; // num of constraints
+
+  constraints c;
+  c.num_constraints = n;
+  c.q_l = (u8_fe *)malloc(n * sizeof(u8_fe));
+  c.q_r = (u8_fe *)malloc(n * sizeof(u8_fe));
+  c.q_o = (u8_fe *)malloc(n * sizeof(u8_fe));
+  c.q_m = (u8_fe *)malloc(n * sizeof(u8_fe));
+  c.q_c = (u8_fe *)malloc(n * sizeof(u8_fe));
+
+  if (!c.q_l || !c.q_r || !c.q_o || !c.q_m || !c.q_c) {
+    fprintf(stderr, "Memory allocation failed in test_constraints_satisfy\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // set up the constraint coefficients for c = a + b
+  // q_l = 1, q_r = 1, q_o = -1, q_m = 0, q_c = 0
+  c.q_l[0] = u8_fe_one();
+  c.q_r[0] = u8_fe_one();
+  c.q_o[0] = u8_fe_neg(u8_fe_one()); // -1 mod MODULO
+  c.q_m[0] = u8_fe_zero();
+  c.q_c[0] = u8_fe_zero();
+
+  // Assignments
+  assignments a;
+  a.len = n;
+  a.a = (u8_fe *)malloc(n * sizeof(u8_fe));
+  a.b = (u8_fe *)malloc(n * sizeof(u8_fe));
+  a.c = (u8_fe *)malloc(n * sizeof(u8_fe));
+
+  if (!a.a || !a.b || !a.c) {
+    fprintf(stderr, "Memory allocation failed in test_constraints_satisfy\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // test case 1: correct assignments (a = 2, b = 3, c = 5)
+  a.a[0] = u8_fe_new(2);
+  a.b[0] = u8_fe_new(3);
+  a.c[0] = u8_fe_new(5);
+
+  // check if constraints are satisfied
+  assert(constraints_satisfy(&c, &a));
+
+  // test case 2: incorrect assignments (a = 2, b = 3, c = 6)
+  a.c[0] = u8_fe_new(6);
+  assert(!constraints_satisfy(&c, &a));
+
+  constraints_free(&c);
+  free(a.a);
+  free(a.b);
+  free(a.c);
+}
+
 int main() {
   test_expr();
+  test_constraints_satisfy();
   return 0;
 }
