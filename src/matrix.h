@@ -81,7 +81,7 @@ matrix matrix_add(const matrix *a, const matrix *b) {
 
 matrix matrix_mul(const matrix *a, const matrix *b) {
   if (a->n != b->m) {
-    fprintf(stderr, "Matrix dimensions incompatible for multiplication\n");
+       fprintf(stderr, "Matrix multiplication error: Dimensions (%zu x %zu) and (%zu x %zu) incompatible.\n", a->m, a->n, b->m, b->n);
     exit(EXIT_FAILURE);
   }
   matrix result = matrix_zero(a->m, b->n);

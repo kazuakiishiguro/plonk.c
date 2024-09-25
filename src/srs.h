@@ -52,14 +52,13 @@ void srs_free(srs *s) {
 }
 
 g1_p srs_eval_at_s(const srs *s, const poly *vs) {
-  // compute a(s) = sum_{i=0}^{n-1} vs.coeffs[i] * g1s[i]
-  g1_p acc = g1_p_identity();
-  size_t len = vs->len;
-  if (len > s->len) {
-    fprintf(stderr, "Poynomial degree exceeds SRS size\n");
+  if (vs->len > s->len) {
+       fprintf(stderr, "Poynomial degree exceeds SRS size: poly degree: %zu, srs supports up to degree: %zu \n", vs->len, vs->len);
     exit(EXIT_FAILURE);
   }
-  for (size_t i = 0; i < len; i++) {
+  // compute a(s) = sum_{i=0}^{n-1} vs.coeffs[i] * g1s[i]
+  g1_p acc = g1_p_identity();
+  for (size_t i = 0; i < vs->len; i++) {
     // multiply gls[i] by vs.coeffs[i]
     u8_fe coeff = vs->coeffs[i];
     g1_p term = g1_p_mul(&s->g1s[i], coeff.value);
