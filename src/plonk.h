@@ -590,7 +590,7 @@ proof plonk_prove(
   // Evaluate r_x at z to get r_z
   u8_fe r_z = poly_eval(&r_x, z);
 
-  // Step 10: Compute opening proofs w_z_x and w_z_omega_x
+  // Step 10: Compute opening prf w_z_x and w_z_omega_x
   // Compute t_lo_x + t_mid_x * z^{n+2} + t_hi_x * z^{2n+4}
   u8_fe z_pow_n_plus_2 = u8_fe_pow(z, n + 2);
   u8_fe z_pow_2n_plus_4 = u8_fe_pow(z, 2 * n + 4);
@@ -745,6 +745,285 @@ proof plonk_prove(
   poly_free(&q_c_x);
 
   return prf;
+}
+
+bool plonk_verify(
+    plonk *p,
+    constraints *cons,
+    proof *prf,
+    challenge *ch,
+    u8_fe rand[1]
+                  ) {
+  // unpack prf
+  g1_p a_s = prf->a_s;
+  g1_p b_s = prf->b_s;
+  g1_p c_s = prf->c_s;
+  g1_p z_s = prf->z_s;
+  g1_p t_lo_s = prf->t_lo_s;
+  g1_p t_mid_s = prf->t_mid_s;
+  g1_p t_hi_s = prf->t_hi_s;
+  g1_p w_z_s = prf->w_z_s;
+  g1_p w_z_omega_s = prf->w_z_omega_s;
+  u8_fe a_z = prf->a_z;
+  u8_fe b_z = prf->b_z;
+  u8_fe c_z = prf->c_z;
+  u8_fe s_sigma_1_z = prf->s_sigma_1_z;
+  u8_fe s_sigma_2_z = prf->s_sigma_2_z;
+  u8_fe r_z = prf->r_z;
+  u8_fe z_omega_z = prf->z_omega_z;
+
+  // unpack challenge
+  u8_fe alpha = ch->alpha;
+  u8_fe beta = ch->beta;
+  u8_fe gamma = ch->gamma;
+  u8_fe z = ch->z;
+  u8_fe v = ch->v;
+
+  // constants
+  u8_fe omega = u8_fe_new(OMEGA_VALUE);
+  u8_fe k1 = u8_fe_new(K1_VALUE);
+  u8_fe k2 = u8_fe_new(K2_VALUE);
+
+  // step 1: Validate proof points in G1
+  if (!g1_p_is_on_curve(&a_s) ||
+      !g1_p_is_on_curve(&b_s) ||
+      !g1_p_is_on_curve(&c_s) ||
+      !g1_p_is_on_curve(&z_s) ||
+      !g1_p_is_on_curve(&t_lo_s) ||
+      !g1_p_is_on_curve(&t_mid_s) ||
+      !g1_p_is_on_curve(&t_hi_s) ||
+      !g1_p_is_on_curve(&w_z_s) ||
+      !g1_p_is_on_curve(&w_z_omega_s)) {
+    return false;
+  }
+
+  // step 2: Validate proof fields in HF
+  if (!u8_fe_in_field(a_z) ||
+      !u8_fe_in_field(b_z) ||
+      !u8_fe_in_field(c_z) ||
+      !u8_fe_in_field(s_sigma_1_z) ||
+      !u8_fe_in_field(s_sigma_2_z) ||
+      !u8_fe_in_field(r_z) ||
+      !u8_fe_in_field(z_omega_z)) {
+    return false;
+  }
+
+  // step 3: No public inputs, nothing to do
+
+  // step 4: Evaluate z_h at z
+  u8_fe z_h_z = poly_eval(&p->z_h_x, z);
+
+  // step 5: Evaluate lagrange polynomial L1 at z
+  u8_fe *lagrange_vector = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  if (!lagrange_vector) {
+    fprintf(stderr, "Memory allocation failed in plonk_verify\n");
+    exit(EXIT_FAILURE);
+  }
+
+  lagrange_vector[0] = u8_fe_new(1); // L1(omega^0) = 1
+  poly l_1_x = interpolate_at_h(p, lagrange_vector, p->h_len);
+  free(lagrange_vector);
+  u8_fe l_1_z = poly_eval(&l_1_x, z);
+  poly_free(&l_1_x);
+
+  // step 6: No public inputs, nothing to do
+  u8_fe p_i_z = u8_fe_new(0);
+
+  // step 7: Compute quotient polynomial evaluation
+  u8_fe a_z_beta_s_sigma_1_z_gamma = u8_fe_add(u8_fe_add(u8_fe_mul(beta, s_sigma_1_z), gamma), a_z);
+  u8_fe b_z_beta_s_sigma_2_z_gamma = u8_fe_add(u8_fe_add(u8_fe_mul(beta, s_sigma_2_z), gamma), b_z);
+  u8_fe c_z_gamma = u8_fe_add(c_z, gamma);
+  u8_fe l_1_z_alpha_2 = u8_fe_mul(l_1_z, u8_fe_pow(alpha, 2));
+
+  u8_fe numerator = u8_fe_sub(u8_fe_add(r_z, p_i_z),
+                              u8_fe_add(
+                                  u8_fe_mul(
+                                      u8_fe_mul(
+                                          u8_fe_mul(
+                                              a_z_beta_s_sigma_1_z_gamma,
+                                              b_z_beta_s_sigma_2_z_gamma),
+                                          c_z_gamma),
+                                      z_omega_z),
+                                  l_1_z_alpha_2));
+
+  u8_fe t_z = u8_fe_div(numerator, z_h_z);
+
+  // step 8: Compute the first part of batched polynomial commitment
+  // compute sigmas
+  size_t n = cons->num_constraints;
+
+  u8_fe *sigma_1 = (u8_fe *)malloc(n * sizeof(u8_fe));
+  u8_fe *sigma_2 = (u8_fe *)malloc(n * sizeof(u8_fe));
+  u8_fe *sigma_3 = (u8_fe *)malloc(n * sizeof(u8_fe));
+  if (!sigma_1 || !sigma_2 || !sigma_3) {
+    fprintf(stderr, "Memory allocation failed in plonk_verify\n");
+    exit(EXIT_FAILURE);
+  }
+
+  copy_constraints_to_roots(p, cons->c_a, n, sigma_1);
+  copy_constraints_to_roots(p, cons->c_b, n, sigma_2);
+  copy_constraints_to_roots(p, cons->c_c, n, sigma_3);
+
+  // interpolate and evaluate polynomials at s
+  poly q_m_x = interpolate_at_h(p, cons->q_m, n);
+  g1_p q_m_s = srs_eval_at_s(&p->s, &q_m_x);
+  poly_free(&q_m_x);
+
+  poly q_l_x = interpolate_at_h(p, cons->q_l, n);
+  g1_p q_l_s = srs_eval_at_s(&p->s, &q_l_x);
+  poly_free(&q_l_x);
+
+  poly q_r_x = interpolate_at_h(p, cons->q_r, n);
+  g1_p q_r_s = srs_eval_at_s(&p->s, &q_r_x);
+  poly_free(&q_r_x);
+
+  poly q_o_x = interpolate_at_h(p, cons->q_o, n);
+  g1_p q_o_s = srs_eval_at_s(&p->s, &q_o_x);
+  poly_free(&q_o_x);
+
+  poly q_c_x = interpolate_at_h(p, cons->q_c, n);
+  g1_p q_c_s = srs_eval_at_s(&p->s, &q_c_x);
+  poly_free(&q_c_x);
+
+  poly s_sigma_1_x = interpolate_at_h(p, sigma_1, n);
+  g1_p sigma_1_s = srs_eval_at_s(&p->s, &s_sigma_1_x);
+  poly_free(&s_sigma_1_x);
+
+  poly s_sigma_2_x = interpolate_at_h(p, sigma_2, n);
+  g1_p sigma_2_s = srs_eval_at_s(&p->s, &s_sigma_2_x);
+  poly_free(&s_sigma_2_x);
+
+  poly s_sigma_3_x = interpolate_at_h(p, sigma_3, n);
+  g1_p sigma_3_s = srs_eval_at_s(&p->s, &s_sigma_3_x);
+  poly_free(&s_sigma_3_x);
+
+  free(sigma_1);
+  free(sigma_2);
+  free(sigma_3);
+
+  // Random scalar u
+  u8_fe u = rand[0];
+
+  // Compute d_1_s
+  g1_p tmp_lhs = g1_p_mul(&q_r_s, u8_fe_mul(b_z, v).value);
+  g1_p tmp_rhs = g1_p_mul(&q_o_s, u8_fe_mul(c_z, v).value);
+  g1_p tmp_lhs2 = g1_p_mul(&q_l_s, u8_fe_mul(a_z, v).value);
+  g1_p tmp_rhs2 = g1_p_add(&tmp_lhs, &tmp_rhs);
+  g1_p tmp_lhs3 = g1_p_mul(&q_m_s, u8_fe_mul(u8_fe_mul(a_z, b_z), v).value);
+  g1_p tmp_rhs3 = g1_p_add(&tmp_lhs2, &tmp_rhs2);
+  g1_p d_1_s = g1_p_add(&tmp_lhs3,&tmp_rhs3);
+  g1_p tmp_rhs4 = g1_p_mul(&q_c_s, v.value);
+  d_1_s = g1_p_add(&d_1_s, &tmp_rhs4);
+
+  // Compute d_2_s
+  u8_fe term_d2 = u8_fe_add(
+      u8_fe_mul(
+          u8_fe_mul(
+              u8_fe_mul(
+                  u8_fe_add(a_z, u8_fe_add(u8_fe_mul(beta, z), gamma)),
+                  u8_fe_add(b_z, u8_fe_add(u8_fe_mul(beta, u8_fe_mul(k1, z)), gamma))
+                        ),
+              u8_fe_add(c_z, u8_fe_add(u8_fe_mul(beta, u8_fe_mul(k2, z)), gamma))
+                    ),
+          u8_fe_mul(alpha, v)
+                ),
+      u8_fe_mul(l_1_z, u8_fe_mul(u8_fe_pow(alpha, 2), v))
+                            );
+  term_d2 = u8_fe_add(term_d2, u);
+  g1_p d_2_s = g1_p_mul(&z_s, term_d2.value);
+
+  // Compute d_3_s
+  u8_fe term_d3 = u8_fe_mul(
+      u8_fe_mul(
+          u8_fe_mul(
+              u8_fe_add(a_z, u8_fe_add(u8_fe_mul(beta, s_sigma_1_z), gamma)),
+              u8_fe_add(b_z, u8_fe_add(u8_fe_mul(beta, s_sigma_2_z), gamma))
+                    ),
+          u8_fe_mul(alpha, v)
+                ),
+      u8_fe_mul(beta, z_omega_z)
+                            );
+  g1_p d_3_s = g1_p_mul(&sigma_3_s, term_d3.value);
+
+  // Compute d_s = d_1_s + d_2_s - d_3_s
+  g1_p d_s = g1_p_add(&d_1_s, &d_2_s);
+  g1_p d_3_s_neg = g1_p_neg(&d_3_s);
+  d_s = g1_p_add(&d_s, &d_3_s_neg);
+
+  // Step 9: Compute f_s
+  g1_p t_lo_s_scaled = t_lo_s;
+  g1_p t_mid_s_scaled = g1_p_mul(&t_mid_s, u8_fe_pow(z, n + 2).value);
+  g1_p t_hi_s_scaled = g1_p_mul(&t_hi_s, u8_fe_pow(z, 2 * n + 4).value);
+  g1_p t_lo_mid_s_scaled = g1_p_add(&t_lo_s_scaled, &t_mid_s_scaled);
+  g1_p t_hi_s_scaled_d_s = g1_p_add(&t_hi_s_scaled, &d_s);
+  g1_p a_s_pow_v_2 = g1_p_mul(&a_s, u8_fe_pow(v, 2).value);
+  g1_p b_s_pow_v_3 = g1_p_mul(&b_s, u8_fe_pow(v, 3).value);
+  g1_p c_s_pow_v_4 = g1_p_mul(&c_s, u8_fe_pow(v, 4).value);
+  g1_p sigma_1_s_pow_v_5 = g1_p_mul(&sigma_1_s, u8_fe_pow(v, 5).value);
+  g1_p sigma_2_s_pow_v_6 = g1_p_mul(&sigma_2_s, u8_fe_pow(v, 6).value);
+  g1_p temp_sum = g1_p_add(&sigma_1_s_pow_v_5, &sigma_2_s_pow_v_6);
+  temp_sum = g1_p_add(&c_s_pow_v_4, &temp_sum);
+  temp_sum = g1_p_add(&b_s_pow_v_3, &temp_sum);
+  temp_sum = g1_p_add(&a_s_pow_v_2, &temp_sum);
+
+  g1_p f_s = g1_p_add(&t_lo_mid_s_scaled, &t_hi_s_scaled_d_s);
+  f_s = g1_p_add(&f_s, &temp_sum);
+
+  // Step 10: Compute e_s
+  poly one_poly = poly_new(&(u8_fe){ .value = 1 }, 1);
+  g1_p g1_s = srs_eval_at_s(&p->s, &one_poly);
+  poly_free(&one_poly);
+
+  u8_fe e_scalar = u8_fe_add(
+      t_z,
+      u8_fe_add(
+          u8_fe_mul(v, r_z),
+          u8_fe_add(
+              u8_fe_mul(u8_fe_pow(v, 2), a_z),
+              u8_fe_add(
+                  u8_fe_mul(u8_fe_pow(v, 3), b_z),
+                  u8_fe_add(
+                      u8_fe_mul(u8_fe_pow(v, 4), c_z),
+                      u8_fe_add(
+                          u8_fe_mul(u8_fe_pow(v, 5), s_sigma_1_z),
+                          u8_fe_add(
+                              u8_fe_mul(u8_fe_pow(v, 6), s_sigma_2_z),
+                              u8_fe_mul(u, z_omega_z)
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+                             );
+  g1_p e_s = g1_p_mul(&g1_s, e_scalar.value);
+
+  // step 11: Batch validate all equations
+  g1_p w_z_omega_s_u = g1_p_mul(&w_z_omega_s, u.value);
+  g1_p e_1_q1 = g1_p_add(&w_z_s, &w_z_omega_s_u);
+  g2_p e_1_q2 = p->s.g2_s;
+
+  g1_p temp1 = g1_p_mul(&w_z_s, z.value);
+  g1_p temp2 = g1_p_mul(&w_z_omega_s, u8_fe_mul(u, u8_fe_mul(z, omega)).value);
+  g1_p temp3 = g1_p_add(&temp1, &temp2);
+
+  // TODO: check it's validity for g1_p_sub
+  g1_p e_s_neg = g1_p_neg(&e_s);
+  g1_p temp4 = g1_p_add(&f_s, &e_s_neg);
+
+  g1_p e_2_q1 = g1_p_add(&temp3, &temp4);
+  g2_p e_2_q2 = p->s.g2_1;
+
+  // compute pairings
+  gtp e_1 = pairing(&e_1_q1, &e_1_q2);
+  gtp e_2 = pairing(&e_2_q1, &e_2_q2);
+
+  // check if e_1 == e_2
+  if (gtp_equal(&e_1, &e_2)) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 #endif // PLONK_H

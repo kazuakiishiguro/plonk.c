@@ -33,6 +33,10 @@ u8_fe u8_fe_one() {
   return u8_fe_new(1);
 }
 
+bool u8_fe_in_field(u8_fe a) {
+  return a.value < MODULO;
+}
+
 inline static bool is_odd(uint64_t n) {
   return n & 1;
 }
