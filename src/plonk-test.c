@@ -100,6 +100,74 @@ void test_plonk() {
   c.c_c[1] = (copy_of){COPYOF_A, 4};
   c.c_c[2] = (copy_of){COPYOF_A, 4};
   c.c_c[3] = (copy_of){COPYOF_C, 3};
+
+  // step 4: define assignments
+  assignments a;
+  a.len = num_constraints;
+  a.a = (u8_fe *)malloc(num_constraints * sizeof(u8_fe));
+  a.b = (u8_fe *)malloc(num_constraints * sizeof(u8_fe));
+  a.c = (u8_fe *)malloc(num_constraints * sizeof(u8_fe));
+
+  if (!a.a || !a.b || !a.c) {
+    fprintf(stderr, "Memory allocation failed in test_plonk\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // assign values
+  // assignment 1: a = 3, b = 3, c = 9
+  a.a[0] = u8_fe_new(3);
+  a.b[0] = u8_fe_new(3);
+  a.c[0] = u8_fe_new(9);
+
+  // assignment 2: a = 4, b = 4, c = 16
+  a.a[1] = u8_fe_new(4);
+  a.b[1] = u8_fe_new(4);
+  a.c[1] = u8_fe_new(16);
+
+  // assignment 3: a = 5, b = 5, c = 25
+  a.a[2] = u8_fe_new(5);
+  a.b[2] = u8_fe_new(5);
+  a.c[2] = u8_fe_new(25);
+
+  // assignment 4: a = 9, b = 16, c = 25
+  a.a[3] = u8_fe_new(9);
+  a.b[3] = u8_fe_new(16);
+  a.c[3] = u8_fe_new(25);
+
+  // step 5: define random numbers (the b's)
+  u8_fe rand[9] = {
+    u8_fe_new(7),
+    u8_fe_new(4),
+    u8_fe_new(11),
+    u8_fe_new(12),
+    u8_fe_new(16),
+    u8_fe_new(2),
+    u8_fe_new(14),
+    u8_fe_new(11),
+    u8_fe_new(7)
+  };
+
+  // step 6: define challenge calues
+  challenge ch;
+  ch.alpha = u8_fe_new(15);
+  ch.beta = u8_fe_new(12);
+  ch.gamma = u8_fe_new(13);
+  ch.z = u8_fe_new(5);
+  ch.z = u8_fe_new(12);
+
+  // step 7: call plonk_prove to generate a proof
+  proof prf = plonk_prove(&p, &c, &a, &ch, rand);
+
+  // step 8: define the expected proof (for comparison)
+  proof expected;
+  expected.a_s = g1_p_new(u8_fe_new(91).value, u8_fe_new(66).value);
+  expected.b_s = g1_p_new(u8_fe_new(26).value, u8_fe_new(45).value);
+  expected.c_s = g1_p_new(u8_fe_new(91).value, u8_fe_new(35).value);
+  expected.z_s = g1_p_new(u8_fe_new(32).value, u8_fe_new(59).value);
+  expected.t_lo_s = g1_p_new(u8_fe_new(12).value, u8_fe_new(32).value);
+  expected.t_mid_s = g1_p_new(u8_fe_new(26).value, u8_fe_new(45).value);
+  expected.t_hi_s = g1_p_new(u8_fe_new(91).value, u8_fe_new(35).value);
+  // cont
 }
 
 int main() {
