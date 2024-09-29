@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "plonk.h"
 
 void test_plonk() {
@@ -166,10 +167,39 @@ void test_plonk() {
   expected.z_s = g1_p_new(u8_fe_new(32).value, u8_fe_new(59).value);
   expected.t_lo_s = g1_p_new(u8_fe_new(12).value, u8_fe_new(32).value);
   expected.t_mid_s = g1_p_new(u8_fe_new(26).value, u8_fe_new(45).value);
-  expected.t_hi_s = g1_p_new(u8_fe_new(91).value, u8_fe_new(35).value);
-  // cont
+  expected.t_hi_s = g1_p_new(u8_fe_new(91).value, u8_fe_new(66).value);
+  expected.w_z_s = g1_p_new(u8_fe_new(91).value, u8_fe_new(35).value);
+  expected.w_z_omega_s = g1_p_new(u8_fe_new(65).value, u8_fe_new(98).value);
+  expected.a_z = u8_fe_new(15);
+  expected.b_z = u8_fe_new(13);
+  expected.c_z = u8_fe_new(5);
+  expected.s_sigma_1_z = u8_fe_new(1);
+  expected.s_sigma_2_z = u8_fe_new(12);
+  expected.r_z = u8_fe_new(15);
+  expected.z_omega_z = u8_fe_new(15);
+
+  // step 9: compare the generated proof with the expected proof
+  // TODO: check proof equality
+
+  // step 10: verify the proof
+  u8_fe rand_verifier[1] = { u8_fe_new(4) };
+  assert(plonk_verify(&p, &c, &prf, &ch, rand_verifier));
+
+  free(c.q_m);
+  free(c.q_l);
+  free(c.q_r);
+  free(c.q_o);
+  free(c.q_c);
+  free(c.c_a);
+  free(c.c_b);
+  free(c.c_c);
+  free(a.a);
+  free(a.b);
+  free(a.c);
+  plonk_free(&p);
 }
 
 int main() {
+  test_plonk();
   return 0;
 }
