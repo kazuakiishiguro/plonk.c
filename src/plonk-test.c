@@ -12,7 +12,8 @@ void test_plonk() {
 
   // step 2: create the plonk instance
   // number of omega powers (size of H)
-  size_t omega_pows = 4;
+  size_t num_constraints = 4;
+  size_t omega_pows = num_constraints + 1;
   plonk p = plonk_new(s, omega_pows);
 
   // step 3: set up constraints and assignments
@@ -22,8 +23,6 @@ void test_plonk() {
   // - gate 2: mul a * b
   // - gate 3: mul a * b
   // - gate 4: mul a + b
-
-  size_t num_constraints = 4;
 
   constraints c;
   c.num_constraints = num_constraints;

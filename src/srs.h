@@ -56,7 +56,7 @@ g1_p srs_eval_at_s(const srs *s, const poly *vs) {
   g1_p acc = g1_p_identity();
   size_t len = vs->len;
   if (len > s->len) {
-    fprintf(stderr, "Poynomial degree exceeds SRS size\n");
+       fprintf(stderr, "Poynomial degree exceeds SRS size: len: %zu, s->len: %zu \n", len, vs->len);
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < len; i++) {

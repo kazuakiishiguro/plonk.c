@@ -52,25 +52,24 @@ typedef struct {
   poly z_h_x;        // polynomial z_h_x
 } plonk;
 
-plonk plonk_new(srs s, size_t omega_pows) {
+plonk plonk_new(srs s, size_t n) {
   plonk p;
   p.s = s;
-  p.h_len = omega_pows;
+  p.h_len = n + 1;
 
   // init
   u8_fe OMEGA = u8_fe_new(OMEGA_VALUE);
   u8_fe K1 = u8_fe_new(K1_VALUE);
   u8_fe K2 = u8_fe_new(K2_VALUE);
 
+  // compute h = [omega^0, omega^1, ..., omega^n]
   p.h = (u8_fe *)malloc(p.h_len * sizeof(u8_fe));
   if (!p.h) {
     fprintf(stderr, "Memory allocation failed in plonk_new\n");
     exit(EXIT_FAILURE);
   }
-  u8_fe omega_pow = u8_fe_new(1);
   for (size_t i = 0; i < p.h_len; i++) {
-    p.h[i] = omega_pow;
-    omega_pow = u8_fe_mul(omega_pow, OMEGA);
+       p.h[i] = u8_fe_pow(OMEGA, i);
   }
 
   // check that K1 and K2 are not in H
@@ -111,7 +110,7 @@ plonk plonk_new(srs s, size_t omega_pows) {
     }
   }
 
-  // compute invers eof h_pows
+  // compute inverse of h_pows
   p.h_pows_inv = matrix_inv(&h_pows);
   matrix_free(&h_pows);
 
@@ -222,24 +221,89 @@ proof plonk_prove(
   copy_constraints_to_roots(p, c->c_c, n, sigma_3);
 
   // step 3: create polynomials
-  poly f_a_x = interpolate_at_h(p, a->a, n);
-  poly f_b_x = interpolate_at_h(p, a->b, n);
-  poly f_c_x = interpolate_at_h(p, a->c, n);
 
-  poly q_o_x = interpolate_at_h(p, c->q_o, n);
-  poly q_m_x = interpolate_at_h(p, c->q_m, n);
-  poly q_l_x = interpolate_at_h(p, c->q_l, n);
-  poly q_r_x = interpolate_at_h(p, c->q_r, n);
-  poly q_c_x = interpolate_at_h(p, c->q_c, n);
+  // Pad a->a to length p->h_len
+  u8_fe *a_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  if (!a_padded) {
+       fprintf(stderr, "Memory allocation failed for a_padded\n");
+       exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < n; i++) {
+       a_padded[i] = a->a[i];
+  }
+  poly f_a_x = interpolate_at_h(p, a_padded, p->h_len);
+  free(a_padded);
 
-  poly s_sigma_1 = interpolate_at_h(p, sigma_1, n);
-  poly s_sigma_2 = interpolate_at_h(p, sigma_2, n);
-  poly s_sigma_3 = interpolate_at_h(p, sigma_3, n);
+  u8_fe *b_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  if (!b_padded) {
+       fprintf(stderr, "Memory allocation failed for b_padded\n");
+       exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < n; i++) {
+       b_padded[i] = a->b[i];
+  }
+  poly f_b_x = interpolate_at_h(p, b_padded, p->h_len);
+  free(b_padded);
 
-  // free sigma array as they are no longer needed
-  free(sigma_1);
-  free(sigma_2);
-  free(sigma_3);
+  u8_fe *c_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  if (!c_padded) {
+       fprintf(stderr, "Memory allocation failed for c_padded\n");
+       exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < n; i++) {
+       c_padded[i] = a->c[i];
+  }
+  poly f_c_x = interpolate_at_h(p, c_padded, p->h_len);
+  free(c_padded);
+
+
+  u8_fe *q_o_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  u8_fe *q_m_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  u8_fe *q_l_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  u8_fe *q_r_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  u8_fe *q_c_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  if (!q_o_padded || !q_m_padded || !q_l_padded || !q_r_padded || !q_c_padded) {
+       fprintf(stderr, "Memory allocation failed for padded constraint arrays\n");
+       exit(EXIT_FAILURE);
+  }
+  memcpy(q_o_padded, c->q_o, n * sizeof(u8_fe));
+  memcpy(q_m_padded, c->q_m, n * sizeof(u8_fe));
+  memcpy(q_l_padded, c->q_l, n * sizeof(u8_fe));
+  memcpy(q_r_padded, c->q_r, n * sizeof(u8_fe));
+  memcpy(q_c_padded, c->q_c, n * sizeof(u8_fe));
+
+  poly q_o_x = interpolate_at_h(p, q_o_padded, p->h_len);
+  poly q_m_x = interpolate_at_h(p, q_m_padded, p->h_len);
+  poly q_l_x = interpolate_at_h(p, q_l_padded, p->h_len);
+  poly q_r_x = interpolate_at_h(p, q_r_padded, p->h_len);
+  poly q_c_x = interpolate_at_h(p, q_c_padded, p->h_len);
+
+  free(q_o_padded);
+  free(q_m_padded);
+  free(q_l_padded);
+  free(q_r_padded);
+  free(q_c_padded);
+
+  // Similarly, pad sigma_1, sigma_2, sigma_3 before interpolating
+  u8_fe *sigma_1_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  u8_fe *sigma_2_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  u8_fe *sigma_3_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  if (!sigma_1_padded || !sigma_2_padded || !sigma_3_padded) {
+       fprintf(stderr, "Memory allocation failed for sigma_padded arrays\n");
+       exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < n; i++) {
+       sigma_1_padded[i] = sigma_1[i];
+       sigma_2_padded[i] = sigma_2[i];
+       sigma_3_padded[i] = sigma_3[i];
+  }
+
+  poly s_sigma_1 = interpolate_at_h(p, sigma_1_padded, p->h_len);
+  poly s_sigma_2 = interpolate_at_h(p, sigma_2_padded, p->h_len);
+  poly s_sigma_3 = interpolate_at_h(p, sigma_3_padded, p->h_len);
+  free(sigma_1_padded);
+  free(sigma_2_padded);
+  free(sigma_3_padded);
 
   // step 4: round 1 - evaluate a(x), b(x), c(x) at s
   u8_fe b1 = rand[0], b2 = rand[1], b3 = rand[2], b4 = rand[3], b5 = rand[4], b6 = rand[5];
