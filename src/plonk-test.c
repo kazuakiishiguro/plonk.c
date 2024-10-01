@@ -6,7 +6,7 @@ void test_plonk() {
   // toxic waste
   u8_fe secret = u8_fe_new(2);
   // number of points in srs
-  size_t n = 6;
+  size_t n = 10;
 
   srs s = srs_create(secret, n);
 

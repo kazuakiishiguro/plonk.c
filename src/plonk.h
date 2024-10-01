@@ -256,7 +256,6 @@ proof plonk_prove(
   poly f_c_x = interpolate_at_h(p, c_padded, p->h_len);
   free(c_padded);
 
-
   u8_fe *q_o_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
   u8_fe *q_m_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
   u8_fe *q_l_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
@@ -343,7 +342,7 @@ proof plonk_prove(
   u8_fe b7 = rand[6], b8 = rand[7], b9 = rand[8];
 
   // initialize accumulator vector with 1
-  u8_fe *acc = (u8_fe *)malloc((n + 1) *sizeof(u8_fe));
+  u8_fe *acc = (u8_fe *)malloc(p->h_len *sizeof(u8_fe));
   if (!acc) {
     fprintf(stderr, "Memory allocation failed for accumulator vector\n");
     exit(EXIT_FAILURE);
@@ -385,8 +384,12 @@ proof plonk_prove(
     acc[i] = u8_fe_mul(acc[i - 1], fraction);
   }
 
+  // pad the rest with zeros
+  for (size_t i = n + 1; i < p->h_len; i++)
+    acc[i] = u8_fe_new(0);
+
   // interpolate accumualtor vector
-  poly acc_x = interpolate_at_h(p, acc, n + 1);
+  poly acc_x = interpolate_at_h(p, acc, p->h_len);
   free(acc);
 
   // check that acc_x evaluated at omega^n is 1
