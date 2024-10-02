@@ -104,7 +104,9 @@ void test_poly_mul() {
 void test_poly_eval() {
   u8_fe coeffs[] = {f101(1), f101(2), f101(1)};
   poly p = poly_new(coeffs, 3);
-  u8_fe eval = poly_eval(&p, f101(2));
+  hf_fe x_hf = hf_fe_new(2);
+  u8_fe x = gf_from_hf(x_hf);
+  u8_fe eval = poly_eval(&p, x);
   u8_fe expected = f101(9);
   u8_fe_equal(eval, expected);
 }
