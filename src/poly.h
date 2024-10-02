@@ -228,8 +228,7 @@ void poly_free(poly *p) {
   p->len = 0;
 }
 
-u8_fe poly_eval(const poly *p, hf_fe x_hf) {
-  u8_fe x = gf_from_hf(x_hf);
+u8_fe poly_eval(const poly *p, u8_fe x) {
   u8_fe x_pow = u8_fe_one();
   u8_fe y = u8_fe_zero();
   for (size_t i = 0; i < p->len; i++) {
