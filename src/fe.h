@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "hf.h"
 
 #define MODULO 101
 
@@ -96,6 +97,10 @@ u8_fe u8_fe_inv(u8_fe field) {
 u8_fe u8_fe_div(u8_fe a, u8_fe b) {
   u8_fe inv_b = u8_fe_inv(b);
   return u8_fe_mul(a, inv_b);
+}
+
+u8_fe gf_from_hf(hf_fe hf_elem) {
+  return u8_fe_new(hf_elem.value);
 }
 
 #endif

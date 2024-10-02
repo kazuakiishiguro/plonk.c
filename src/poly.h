@@ -228,13 +228,14 @@ void poly_free(poly *p) {
   p->len = 0;
 }
 
-u8_fe poly_eval(const poly *p, u8_fe x) {
-  u8_fe x_pow = u8_fe_new(1);
-  u8_fe y = p->coeffs[0];
-  for (size_t i = 1; i < p->len; i++) {
-    x_pow = u8_fe_mul(x_pow, x);
+u8_fe poly_eval(const poly *p, hf_fe x_hf) {
+  u8_fe x = gf_from_hf(x_hf);
+  u8_fe x_pow = u8_fe_one();
+  u8_fe y = u8_fe_zero();
+  for (size_t i = 0; i < p->len; i++) {
     u8_fe term = u8_fe_mul(x_pow, p->coeffs[i]);
     y = u8_fe_add(y, term);
+    x_pow = u8_fe_mul(x_pow, x);
   }
   return y;
 }
