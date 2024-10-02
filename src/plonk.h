@@ -10,17 +10,18 @@
 #include "pairing.h"
 #include "poly.h"
 #include "srs.h"
+#include "hf.h"
 
 #define OMEGA_VALUE 3 // example value; should be a primitive roor of unity in the field
 #define K1_VALUE    2 // should not be in H
 #define K2_VALUE    4 // should not be in H or K1 * H
 
 typedef struct {
-  u8_fe alpha;
-  u8_fe beta;
-  u8_fe gamma;
-  u8_fe z;
-  u8_fe v;
+  hf_fe alpha;
+  hf_fe beta;
+  hf_fe gamma;
+  hf_fe z;
+  hf_fe v;
 } challenge;
 
 typedef struct {
@@ -33,22 +34,21 @@ typedef struct {
   g1_p t_hi_s;
   g1_p w_z_s;
   g1_p w_z_omega_s;
-  u8_fe a_z;
-  u8_fe b_z;
-  u8_fe c_z;
-  u8_fe s_sigma_1_z;
-  u8_fe s_sigma_2_z;
-  u8_fe r_z;
-  u8_fe z_omega_z ;
+  hf_fe a_z;
+  hf_fe b_z;
+  hf_fe c_z;
+  hf_fe s_sigma_1_z;
+  hf_fe s_sigma_2_z;
+  hf_fe r_z;
+  hf_fe z_omega_z ;
 } proof;
 
 typedef struct {
   srs s;
-  u8_fe *h;          // array of hf elements
+  hf_fe *h;          // array of hf elements
   size_t h_len;
-  matrix h_pows_inv; // inverse of h powers matrix
-  u8_fe *k1_h;       // array of k1 * h elements
-  u8_fe *k2_h;       // array of k2 * h elements
+  hf_fe *k1_h;       // array of k1 * h elements
+  hf_fe *k2_h;       // array of k2 * h elements
   poly z_h_x;        // polynomial z_h_x
 } plonk;
 
@@ -58,9 +58,9 @@ plonk plonk_new(srs s, size_t n) {
   p.h_len = n + 1;
 
   // init
-  u8_fe OMEGA = u8_fe_new(OMEGA_VALUE);
-  u8_fe K1 = u8_fe_new(K1_VALUE);
-  u8_fe K2 = u8_fe_new(K2_VALUE);
+  hf_fe OMEGA = hf_fe_new(OMEGA_VALUE);
+  hf_fe K1 = hf_fe_new(K1_VALUE);
+  hf_fe K2 = hf_fe_new(K2_VALUE);
 
   // compute h = [omega^0, omega^1, ..., omega^n]
   p.h = (u8_fe *)malloc(p.h_len * sizeof(u8_fe));
@@ -69,12 +69,12 @@ plonk plonk_new(srs s, size_t n) {
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < p.h_len; i++) {
-       p.h[i] = u8_fe_pow(OMEGA, i);
+       p.h[i] = hf_fe_pow(OMEGA, i);
   }
 
   // check that K1 and K2 are not in H
   for (size_t i = 0; i < p.h_len; i++) {
-    if (u8_fe_equal(p.h[i], K1) || u8_fe_equal(p.h[i], K2)) {
+    if (hf_fe_equal(p.h[i], K1) || hf_fe_equal(p.h[i], K2)) {
       fprintf(stderr, "K1 or K2 is in H, which is not allowed\n");
       exit(EXIT_FAILURE);
     }
@@ -87,7 +87,7 @@ plonk plonk_new(srs s, size_t n) {
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < p.h_len; i++) {
-    p.k1_h[i] = u8_fe_mul(K1, p.h[i]);
+    p.k1_h[i] = hf_fe_mul(K1, p.h[i]);
   }
 
   // compute k2_h: k2_h[i] = K2 * h[i]
@@ -97,16 +97,16 @@ plonk plonk_new(srs s, size_t n) {
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < p.h_len; i++) {
-    p.k2_h[i] = u8_fe_mul(K2, p.h[i]);
+    p.k2_h[i] = hf_fe_mul(K2, p.h[i]);
   }
 
   // build h_pows matrix (vandermonde matrix) and compute its inverse
   matrix h_pows = matrix_zero(p.h_len, p.h_len);
   for (size_t r = 0; r < h_pows.m; r++) {
-    u8_fe h_pow = u8_fe_new(1);
+    hf_fe h_pow = hf_fe_new(1);
     for (size_t c = 0; c < h_pows.n; c++) {
       matrix_set(&h_pows, r, c, h_pow);
-      h_pow = u8_fe_mul(h_pow, p.h[r]);
+      h_pow = hf_fe_mul(h_pow, p.h[r]);
     }
   }
 
@@ -126,7 +126,7 @@ void plonk_free(plonk *p) {
     free(p->h);
     p->h = NULL;
   }
-  matrix_free(&p->h_pows_inv);
+
   if (p->k1_h) {
     free(p->k1_h);
     p->k1_h = NULL;
@@ -159,26 +159,56 @@ void copy_constraints_to_roots(const plonk *p, const copy_of *cp, size_t len, u8
 }
 
 poly interpolate_at_h(const plonk *p, const u8_fe *values, size_t len) {
-  // convert values to a column matrix
-  matrix vec = matrix_zero(len, 1);
-  for (size_t i = 0; i < len; i++) {
-    matrix_set(&vec, i , 0, values[i]);
+  // map roots of unity h from HF to GF
+  u8_fe *h_gf = (u8_fe *)malloc(p->h_len * sizeof(u8_fe));
+  if (!h_gf) {
+    fprintf(stderr, "Memory allocation failed in interpolate_at_h\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < p->h_len; i++) {
+    h_gf[i] = gf_from_hf(p->h[i]); // p->h[i] is hf_fe
   }
 
-  // multiply h_pows_inv * vec
-  matrix res = matrix_mul(&p->h_pows_inv, &vec);
+  // build vandermonde matrix over GF
+  matrix h_pows = matrix_zero(p->h_len, p->h_len);
+  for (size_t i = 0; i < p->h_len; i++) {
+    u8_fe x = h_gf[i];
+    u8_fe x_pow = u8_fe_one(); // x^0
+    for (size_t j = 0; j < p->h_len; j++) {
+      matrix_set(&h_pows, i, j, x_pow); // set h_pows[i][j] = x_pow
+      x_pow = u8_fe_mul(x_pow, x); // x_pow *= x
+    }
+  }
 
-  // convert result matrix to polynomial
+  // invert the vanderomnde matrix over GF
+  matrix h_pows_inv = matrix_inv(&h_pows); // ensure matrix_inverse works over GF
+  matrix_free(&h_pows);
+  free(h_gf);
+
+  // convert values to a column matrix over GF
+  matrix vec = matrix_zero(len, 1);
+  for (size_t i = 0; i < len; i++) {
+    matrix_set(&vec, i , 0, values[i]); // values[i] is GF
+  }
+
+  // multiply h_pows_inv * vec over GF
+  matrix res = matrix_mul(&h_pows_inv, &vec);
+  matrix_free(&h_pows_inv);
+  matrix_free(&vec);
+
+  // convert result matrix to polynomial coefficients over GF
   u8_fe *coeffs = (u8_fe *)malloc(res.m * sizeof(u8_fe));
+  if (!coeffs) {
+    fprintf(stderr, "Memory allocation failed for coeffs\n");
+    exit(EXIT_FAILURE);
+  }
   for (size_t i = 0; i < res.m; i++) {
     coeffs[i] = matrix_get(&res, i, 0);
   }
 
   poly result = poly_new(coeffs, res.m);
-
-  matrix_free(&vec);
-  matrix_free(&res);
   free(coeffs);
+  matrix_free(&res);
 
   return result;
 }
@@ -194,16 +224,16 @@ proof plonk_prove(
   assert(constraints_satisfy(c, a));
 
   // extract challenges
-  u8_fe alpha = ch->alpha;
-  u8_fe beta = ch->beta;
-  u8_fe gamma = ch->gamma;
-  u8_fe z = ch->z;
-  u8_fe v = ch->v;
+  hf_fe alpha = ch->alpha;
+  hf_fe beta = ch->beta;
+  hf_fe gamma = ch->gamma;
+  hf_fe z = ch->z;
+  hf_fe v = ch->v;
 
   // constants
-  u8_fe omega = u8_fe_new(OMEGA_VALUE);
-  u8_fe k1 = u8_fe_new(K1_VALUE);
-  u8_fe k2 = u8_fe_new(K2_VALUE);
+  hf_fe omega = hf_fe_new(OMEGA_VALUE);
+  hf_fe k1 = hf_fe_new(K1_VALUE);
+  hf_fe k2 = hf_fe_new(K2_VALUE);
 
   size_t n = c->num_constraints;
 
@@ -394,7 +424,19 @@ proof plonk_prove(
 
   // check that acc_x evaluated at omega^n is 1
   u8_fe omega_n = u8_fe_pow(omega, n);
+  printf("omega_n = %u\n", omega_n.value);
   u8_fe acc_x_eval = poly_eval(&acc_x, omega_n);
+  printf("acc_x_eval = %u\n", acc_x_eval.value);
+  printf("Evaluating acc_x at x = %u\n", omega_n.value);
+  printf("acc_x coefficients:\n");
+  for (size_t i = 0; i < acc_x.len; i++) {
+    printf("Coefficient of x^%zu: %u\n", i, acc_x.coeffs[i].value);
+  }
+  printf("acc values:\n");
+  for (size_t i = 0; i < p->h_len; i++) {
+    printf("acc[%zu] = %u\n", i, acc[i].value);
+  }
+
   assert(u8_fe_equal(acc_x_eval, u8_fe_new(1)));
 
   // create z_x polynomial

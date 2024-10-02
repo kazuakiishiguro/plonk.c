@@ -2,6 +2,7 @@
 #define HF_H
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -20,6 +21,10 @@ hf_fe hf_fe_new(uint8_t x) {
 
 hf_fe f17(int64_t n) {
   return hf_fe_new(n);
+}
+
+bool hf_fe_equal(hf_fe a, hf_fe b) {
+  return a.value == b.value;
 }
 
 hf_fe hf_fe_add(hf_fe a, hf_fe b) {
