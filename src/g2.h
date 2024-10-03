@@ -6,30 +6,30 @@
 
 typedef struct {
   GF x, y;
-} g2_p;
+} G2;
 
-g2_p g2_p_new(uint64_t x, uint64_t y) {
-  g2_p point = {
+G2 g2_new(uint64_t x, uint64_t y) {
+  G2 point = {
     .x = f101(x),
     .y = f101(y),
   };
   return point;
 }
 
-g2_p g2_p_generator() {
-  return g2_p_new(36, 31);
+G2 g2_generator() {
+  return g2_new(36, 31);
 }
 
-uint64_t g2_p_embedding_degree() {
+uint64_t g2_embedding_degree() {
   return 2;
 }
 
-g2_p g2_p_neg(g2_p *p) {
+G2 g2_neg(G2 *p) {
   GF neg_y = gf_neg(p->y);
-  return g2_p_new(p->x.value, neg_y.value);
+  return g2_new(p->x.value, neg_y.value);
 }
 
-g2_p g2_p_add(const g2_p *p, const g2_p *q) {
+G2 g2_add(const G2 *p, const G2 *q) {
   GF x, y;
 
   if (gf_equal(p->x, q->x) && gf_equal(p->y, q->y)) {
@@ -62,23 +62,23 @@ g2_p g2_p_add(const g2_p *p, const g2_p *q) {
     x = gf_sub(gf_sub(m_sq_neg_two, x1), x2);
     y = gf_sub(gf_mul(m, gf_sub(x1, x)), y1);
   }
-  return g2_p_new(x.value, y.value);
+  return g2_new(x.value, y.value);
 }
 
-g2_p g2_p_mul(g2_p base, uint64_t scalar) {
+G2 g2_mul(G2 base, uint64_t scalar) {
      int flag = 0;
-     g2_p result;
+     G2 result;
      while (scalar > 0) {
        if (scalar % 2 == 1) {
 	 if (flag) {
-	   result = g2_p_add(&result, &base);
+	   result = g2_add(&result, &base);
 	 } else {
 	   result = base;
 	   flag = 1;
 	 }
        }
        scalar >>= 1;
-       base = g2_p_add(&base, &base);
+       base = g2_add(&base, &base);
      }
      return result;
 }
