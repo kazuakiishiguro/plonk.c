@@ -7,22 +7,22 @@
 #include "gt.h"
 
 int gtp_equal(const gtp *p, const gtp *q) {
-  return u8_fe_equal(p->a, q->a) && u8_fe_equal(p->b, q->b);
+  return gf_equal(p->a, q->a) && gf_equal(p->b, q->b);
 }
 
 typedef struct {
-  u8_fe x;
-  u8_fe y;
-  u8_fe c;
+  GF x;
+  GF y;
+  GF c;
 } line_eq;
 
 line_eq line(const g1_p *a, const g1_p *b) {
-  u8_fe m = u8_fe_sub(b->x, a->x);
-  u8_fe n = u8_fe_sub(b->y, a->y);
+  GF m = gf_sub(b->x, a->x);
+  GF n = gf_sub(b->y, a->y);
 
-  u8_fe x = n;
-  u8_fe y = u8_fe_neg(m);
-  u8_fe c = u8_fe_sub(u8_fe_mul(m, a->y), u8_fe_mul(n, a->x));
+  GF x = n;
+  GF y = gf_neg(m);
+  GF c = gf_sub(gf_mul(m, a->y), gf_mul(n, a->x));
   line_eq l_eq = { .x = x, .y = y, .c = c };
 
   return l_eq;
@@ -38,8 +38,8 @@ gtp pairing_f(uint64_t r, const g1_p *p, const g2_p *q) {
 
     gtp prev = pairing_f(r_minus_1, p, q);
 
-    u8_fe x = u8_fe_add(u8_fe_mul(q->x, l_eq.x), l_eq.c);
-    u8_fe y = u8_fe_mul(q->y, l_eq.y);
+    GF x = gf_add(gf_mul(q->x, l_eq.x), l_eq.c);
+    GF y = gf_mul(q->y, l_eq.y);
 
     gtp gt_term = gtp_new(x, y);
 
@@ -54,8 +54,8 @@ gtp pairing_f(uint64_t r, const g1_p *p, const g2_p *q) {
     gtp prev = pairing_f(r_div_2, p, q);
     gtp prev_sq = gtp_mul(&prev, &prev);
 
-    u8_fe x = u8_fe_add(u8_fe_mul(q->x, l_eq.x), l_eq.c);
-    u8_fe y = u8_fe_mul(q->y, l_eq.y);
+    GF x = gf_add(gf_mul(q->x, l_eq.x), l_eq.c);
+    GF y = gf_mul(q->y, l_eq.y);
 
     gtp gt_term = gtp_new(x, y);
 
