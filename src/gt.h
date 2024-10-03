@@ -6,38 +6,38 @@
 
 typedef struct {
   GF a, b;
-} gtp;
+} GTP;
 
-gtp gtp_new(GF a, GF b) {
-  gtp p = {
+GTP gtp_new(GF a, GF b) {
+  GTP p = {
     a,
     b
   };
   return p;
 }
 
-gtp gtp_neg(gtp *p) {
+GTP gtp_neg(GTP *p) {
   return gtp_new(p->a, gf_neg(p->b));
 }
 
-gtp gtp_mul(gtp *base, gtp *rhs) {
+GTP gtp_mul(GTP *base, GTP *rhs) {
   GF a = gf_sub(gf_mul(base->a, rhs->a), gf_mul(gf_mul(f101(2), base->b), rhs->b));
   GF b = gf_add(gf_mul(base->a, rhs->b), gf_mul(base->b, rhs->a));
 
   return gtp_new(a, b);
 }
 
-gtp gtp_pow(gtp *base, uint64_t exp) {
-  gtp p;
+GTP gtp_pow(GTP *base, uint64_t exp) {
+  GTP p;
   if (exp >= 101) {
-    gtp tmp = gtp_pow(base, exp / 101);
+    GTP tmp = gtp_pow(base, exp / 101);
     p = gtp_neg(&tmp);
     exp %= 101;
   } else {
     p = gtp_new(f101(1), f101(0));
   }
 
-  gtp cur = *base;
+  GTP cur = *base;
 
   // mongomery reduction
   while (exp > 0) {
