@@ -33,8 +33,8 @@ void test_vector() {
   assert(gf_equal(f101(20), gf_neg(gf_div(one, five))));
 
   GF hundred_sq = gf_mul(hundred, hundred);
-  GF two_sq = gf_mul(hundred, hundred);
-  assert(gf_equal(hundred_sq, two_sq));
+  GF two_pow = gf_pow(hundred, 2);
+  assert(gf_equal(hundred_sq, two_pow));
 
   GF hundred_cube = gf_mul(hundred_sq, hundred);
   GF three_pow = gf_pow(hundred, 3);
