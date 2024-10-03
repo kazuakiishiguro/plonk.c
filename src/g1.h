@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "fe.h"
+#include "gf.h"
 
 typedef struct {
   u8_fe x, y;

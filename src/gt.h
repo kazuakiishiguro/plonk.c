@@ -2,7 +2,7 @@
 #define GT_H
 
 #include <stdint.h>
-#include "fe.h"
+#include "gf.h"
 
 typedef struct {
   u8_fe a, b;

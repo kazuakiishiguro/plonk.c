@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "fe.h"
+#include "gf.h"
 #include "poly.h"
 
 typedef struct {
