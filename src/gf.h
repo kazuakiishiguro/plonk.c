@@ -9,32 +9,32 @@
 
 typedef struct {
   uint8_t value;
-} u8_fe;
+} GF;
 
-u8_fe u8_fe_new(int64_t value) {
+GF gf_new(int64_t value) {
   int64_t tmp = value % MODULO;
   if (tmp < 0) {
     tmp += MODULO;
   }
 
-  u8_fe fe;
-  fe.value = (uint8_t)tmp;
-  return fe;
+  GF gf;
+  gf.value = (uint8_t)tmp;
+  return gf;
 }
 
-u8_fe f101(int64_t n) {
-  return u8_fe_new(n);
+GF f101(int64_t n) {
+  return gf_new(n);
 }
 
-u8_fe u8_fe_zero() {
-  return u8_fe_new(0);
+GF gf_zero() {
+  return gf_new(0);
 }
 
-u8_fe u8_fe_one() {
-  return u8_fe_new(1);
+GF gf_one() {
+  return gf_new(1);
 }
 
-bool u8_fe_in_field(u8_fe a) {
+bool gf_in_field(GF a) {
   return a.value < MODULO;
 }
 
@@ -42,65 +42,65 @@ inline static bool is_odd(uint64_t n) {
   return n & 1;
 }
 
-bool u8_fe_equal(u8_fe a, u8_fe b) {
+bool gf_equal(GF a, GF b) {
   return a.value == b.value;
 }
 
-u8_fe u8_fe_add(u8_fe a, u8_fe b) {
+GF gf_add(GF a, GF b) {
   uint16_t sum = a.value + b.value;
   if (sum >= MODULO) sum -= MODULO;
-  u8_fe r;
+  GF r;
   r.value = (uint8_t)sum;
   return r;
 }
 
-u8_fe u8_fe_sub(u8_fe a, u8_fe b) {
+GF gf_sub(GF a, GF b) {
   int16_t diff = (int16_t)a.value - (int16_t)b.value;
   if (diff < 0) diff += MODULO;
-  u8_fe r;
+  GF r;
   r.value = (uint8_t)diff;
   return r;
 }
 
-u8_fe u8_fe_mul(u8_fe a, u8_fe b) {
+GF gf_mul(GF a, GF b) {
   uint16_t product = (uint16_t)a.value * (uint16_t)b.value;
-  u8_fe r;
+  GF r;
   r.value = product % MODULO;
   return r;
 }
 
-u8_fe u8_fe_neg(u8_fe a) {
-  if (a.value == 0) return u8_fe_new(0);
-  u8_fe r;
+GF gf_neg(GF a) {
+  if (a.value == 0) return gf_new(0);
+  GF r;
   r.value = MODULO - a.value;
   return r;
 }
 
-u8_fe u8_fe_pow(u8_fe field, uint64_t exp) {
-  u8_fe r = u8_fe_one();
-  u8_fe base = field;
+GF gf_pow(GF field, uint64_t exp) {
+  GF r = gf_one();
+  GF base = field;
   while (exp > 0) {
     if (is_odd(exp)) {
-      r = u8_fe_mul(r, base);
+      r = gf_mul(r, base);
     }
     exp = exp >> 1;
-    base = u8_fe_mul(base, base);
+    base = gf_mul(base, base);
   }
   return r;
 }
 
-u8_fe u8_fe_inv(u8_fe field) {
+GF gf_inv(GF field) {
   // fermat's little theorem for inverse calculation
-  return u8_fe_pow(field, MODULO -2);
+  return gf_pow(field, MODULO -2);
 }
 
-u8_fe u8_fe_div(u8_fe a, u8_fe b) {
-  u8_fe inv_b = u8_fe_inv(b);
-  return u8_fe_mul(a, inv_b);
+GF gf_div(GF a, GF b) {
+  GF inv_b = gf_inv(b);
+  return gf_mul(a, inv_b);
 }
 
-u8_fe gf_from_hf(hf_fe hf_elem) {
-  return u8_fe_new(hf_elem.value);
+GF gf_from_hf(hf_fe hf_elem) {
+  return gf_new(hf_elem.value);
 }
 
 #endif
