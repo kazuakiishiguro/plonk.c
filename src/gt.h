@@ -5,10 +5,10 @@
 #include "gf.h"
 
 typedef struct {
-  u8_fe a, b;
+  GF a, b;
 } gtp;
 
-gtp gtp_new(u8_fe a, u8_fe b) {
+gtp gtp_new(GF a, GF b) {
   gtp p = {
     a,
     b
@@ -17,12 +17,12 @@ gtp gtp_new(u8_fe a, u8_fe b) {
 }
 
 gtp gtp_neg(gtp *p) {
-  return gtp_new(p->a, u8_fe_neg(p->b));
+  return gtp_new(p->a, gf_neg(p->b));
 }
 
 gtp gtp_mul(gtp *base, gtp *rhs) {
-  u8_fe a = u8_fe_sub(u8_fe_mul(base->a, rhs->a), u8_fe_mul(u8_fe_mul(f101(2), base->b), rhs->b));
-  u8_fe b = u8_fe_add(u8_fe_mul(base->a, rhs->b), u8_fe_mul(base->b, rhs->a));
+  GF a = gf_sub(gf_mul(base->a, rhs->a), gf_mul(gf_mul(f101(2), base->b), rhs->b));
+  GF b = gf_add(gf_mul(base->a, rhs->b), gf_mul(base->b, rhs->a));
 
   return gtp_new(a, b);
 }
