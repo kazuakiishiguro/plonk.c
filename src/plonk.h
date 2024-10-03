@@ -63,7 +63,7 @@ plonk plonk_new(srs s, size_t n) {
   hf_fe K2 = hf_fe_new(K2_VALUE);
 
   // compute h = [omega^0, omega^1, ..., omega^n]
-  p.h = (u8_fe *)malloc(p.h_len * sizeof(u8_fe));
+  p.h = (hf_fe *)malloc(p.h_len * sizeof(hf_fe));
   if (!p.h) {
     fprintf(stderr, "Memory allocation failed in plonk_new\n");
     exit(EXIT_FAILURE);
@@ -81,7 +81,7 @@ plonk plonk_new(srs s, size_t n) {
   }
 
   // compute h1_h: h1_h[i] = K1 * h[i]
-  p.k1_h = (u8_fe *)malloc(p.h_len * sizeof(u8_fe));
+  p.k1_h = (hf_fe *)malloc(p.h_len * sizeof(hf_fe));
   if (!p.k1_h) {
     fprintf(stderr, "Memory allocation failed in plonk_new\n");
     exit(EXIT_FAILURE);
@@ -91,7 +91,7 @@ plonk plonk_new(srs s, size_t n) {
   }
 
   // compute k2_h: k2_h[i] = K2 * h[i]
-  p.k2_h = (u8_fe *)malloc(p.h_len * sizeof(u8_fe));
+  p.k2_h = (hf_fe *)malloc(p.h_len * sizeof(hf_fe));
   if (!p.k2_h) {
     fprintf(stderr, "Memory allocation failed in plonk_new\n");
     exit(EXIT_FAILURE);
@@ -105,17 +105,16 @@ plonk plonk_new(srs s, size_t n) {
   for (size_t r = 0; r < h_pows.m; r++) {
     hf_fe h_pow = hf_fe_new(1);
     for (size_t c = 0; c < h_pows.n; c++) {
-      matrix_set(&h_pows, r, c, h_pow);
+      matrix_set(&h_pows, r, c, gf_from_hf(h_pow));
       h_pow = hf_fe_mul(h_pow, p.h[r]);
     }
   }
 
-  // compute inverse of h_pows
-  p.h_pows_inv = matrix_inv(&h_pows);
   matrix_free(&h_pows);
 
   // compute z_h_x = Poly::z(h)
-  p.z_h_x = poly_z(p.h, p.h_len);;
+  u8_fe h_gf = gf_from_hf(*p.h);
+  p.z_h_x = poly_z(&h_gf, p.h_len);;
 
   return p;
 }
@@ -138,7 +137,7 @@ void plonk_free(plonk *p) {
   poly_free(&p->z_h_x);
 }
 
-void copy_constraints_to_roots(const plonk *p, const copy_of *cp, size_t len, u8_fe *sigma) {
+void copy_constraints_to_roots(const plonk *p, const copy_of *cp, size_t len, hf_fe *sigma) {
   for (size_t i = 0; i < len; i++) {
     size_t idx = cp[i].index - 1;
     switch (cp[i].type) {
@@ -158,7 +157,7 @@ void copy_constraints_to_roots(const plonk *p, const copy_of *cp, size_t len, u8
   }
 }
 
-poly interpolate_at_h(const plonk *p, const u8_fe *values, size_t len) {
+poly interpolate_at_h(const plonk *p, const hf_fe *values, size_t len) {
   // map roots of unity h from HF to GF
   u8_fe *h_gf = (u8_fe *)malloc(p->h_len * sizeof(u8_fe));
   if (!h_gf) {
@@ -188,7 +187,8 @@ poly interpolate_at_h(const plonk *p, const u8_fe *values, size_t len) {
   // convert values to a column matrix over GF
   matrix vec = matrix_zero(len, 1);
   for (size_t i = 0; i < len; i++) {
-    matrix_set(&vec, i , 0, values[i]); // values[i] is GF
+    u8_fe tmp = gf_from_hf(values[i]); // values[i] is GF
+    matrix_set(&vec, i , 0, tmp);
   }
 
   // multiply h_pows_inv * vec over GF
@@ -218,7 +218,7 @@ proof plonk_prove(
     constraints *c,
     assignments *a,
     challenge *ch,
-    u8_fe rand[9]
+    hf_fe rand[9]
                   ) {
   // step 1: Check that the constraints satisfy the assignments
   assert(constraints_satisfy(c, a));
@@ -238,9 +238,9 @@ proof plonk_prove(
   size_t n = c->num_constraints;
 
   // step 2: create sigmas
-  u8_fe *sigma_1 = (u8_fe *)malloc(n * sizeof(u8_fe));
-  u8_fe *sigma_2 = (u8_fe *)malloc(n * sizeof(u8_fe));
-  u8_fe *sigma_3 = (u8_fe *)malloc(n * sizeof(u8_fe));
+  hf_fe *sigma_1 = (hf_fe *)malloc(n * sizeof(hf_fe));
+  hf_fe *sigma_2 = (hf_fe *)malloc(n * sizeof(hf_fe));
+  hf_fe *sigma_3 = (hf_fe *)malloc(n * sizeof(hf_fe));
   if (!sigma_1 || !sigma_2 || !sigma_3) {
     fprintf(stderr, "Memory allocation failed in plonk_prove\n");
     exit(EXIT_FAILURE);
@@ -253,44 +253,46 @@ proof plonk_prove(
   // step 3: create polynomials
 
   // Pad a->a to length p->h_len
-  u8_fe *a_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  hf_fe *a_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
   if (!a_padded) {
-       fprintf(stderr, "Memory allocation failed for a_padded\n");
-       exit(EXIT_FAILURE);
+    fprintf(stderr, "Memory allocation failed for a_padded\n");
+    exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < n; i++) {
-       a_padded[i] = a->a[i];
+    a_padded[i] = f17(a->a[i].value);
   }
+
   poly f_a_x = interpolate_at_h(p, a_padded, p->h_len);
   free(a_padded);
 
-  u8_fe *b_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  hf_fe *b_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
   if (!b_padded) {
-       fprintf(stderr, "Memory allocation failed for b_padded\n");
-       exit(EXIT_FAILURE);
+    fprintf(stderr, "Memory allocation failed for b_padded\n");
+    exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < n; i++) {
-       b_padded[i] = a->b[i];
+    b_padded[i] = f17(a->b[i].value);
   }
+
   poly f_b_x = interpolate_at_h(p, b_padded, p->h_len);
   free(b_padded);
 
-  u8_fe *c_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  hf_fe *c_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
   if (!c_padded) {
-       fprintf(stderr, "Memory allocation failed for c_padded\n");
-       exit(EXIT_FAILURE);
+    fprintf(stderr, "Memory allocation failed for c_padded\n");
+    exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < n; i++) {
-       c_padded[i] = a->c[i];
+    c_padded[i] = f17(a->c[i].value);
   }
   poly f_c_x = interpolate_at_h(p, c_padded, p->h_len);
   free(c_padded);
 
-  u8_fe *q_o_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
-  u8_fe *q_m_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
-  u8_fe *q_l_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
-  u8_fe *q_r_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
-  u8_fe *q_c_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  hf_fe *q_o_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
+  hf_fe *q_m_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
+  hf_fe *q_l_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
+  hf_fe *q_r_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
+  hf_fe *q_c_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
   if (!q_o_padded || !q_m_padded || !q_l_padded || !q_r_padded || !q_c_padded) {
        fprintf(stderr, "Memory allocation failed for padded constraint arrays\n");
        exit(EXIT_FAILURE);
@@ -314,17 +316,17 @@ proof plonk_prove(
   free(q_c_padded);
 
   // Similarly, pad sigma_1, sigma_2, sigma_3 before interpolating
-  u8_fe *sigma_1_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
-  u8_fe *sigma_2_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
-  u8_fe *sigma_3_padded = (u8_fe *)calloc(p->h_len, sizeof(u8_fe));
+  hf_fe *sigma_1_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
+  hf_fe *sigma_2_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
+  hf_fe *sigma_3_padded = (hf_fe *)calloc(p->h_len, sizeof(hf_fe));
   if (!sigma_1_padded || !sigma_2_padded || !sigma_3_padded) {
-       fprintf(stderr, "Memory allocation failed for sigma_padded arrays\n");
-       exit(EXIT_FAILURE);
+    fprintf(stderr, "Memory allocation failed for sigma_padded arrays\n");
+    exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < n; i++) {
-       sigma_1_padded[i] = sigma_1[i];
-       sigma_2_padded[i] = sigma_2[i];
-       sigma_3_padded[i] = sigma_3[i];
+    sigma_1_padded[i] = sigma_1[i];
+    sigma_2_padded[i] = sigma_2[i];
+    sigma_3_padded[i] = sigma_3[i];
   }
 
   poly s_sigma_1 = interpolate_at_h(p, sigma_1_padded, p->h_len);
@@ -335,22 +337,22 @@ proof plonk_prove(
   free(sigma_3_padded);
 
   // step 4: round 1 - evaluate a(x), b(x), c(x) at s
-  u8_fe b1 = rand[0], b2 = rand[1], b3 = rand[2], b4 = rand[3], b5 = rand[4], b6 = rand[5];
+  hf_fe b1 = rand[0], b2 = rand[1], b3 = rand[2], b4 = rand[3], b5 = rand[4], b6 = rand[5];
 
   // a_x = (b2 + b1*x) * z_h_x + f_a_x
-  u8_fe a_blinding_coeffs[] = {b2, b1};
+  hf_fe a_blinding_coeffs[] = {b2, b1};
   poly a_blinding_poly  = poly_new(a_blinding_coeffs, 2);
   poly a_x_blinded = poly_mul(&a_blinding_poly, &p->z_h_x);
   poly a_x = poly_add(&a_x_blinded, &f_a_x);
 
   // b_x = (b4 + b3*x) * z_h_x + f_b_x
-  u8_fe b_blinding_coeffs[] = {b4, b3};
+  hf_fe b_blinding_coeffs[] = {b4, b3};
   poly b_blinding_poly  = poly_new(b_blinding_coeffs, 2);
   poly b_x_blinded = poly_mul(&b_blinding_poly, &p->z_h_x);
   poly b_x = poly_add(&b_x_blinded, &f_b_x);
 
   // c_x = (b6 + b5*x) * z_h_x + f_c_x
-  u8_fe c_blinding_coeffs[] = {b6, b5};
+  hf_fe c_blinding_coeffs[] = {b6, b5};
   poly c_blinding_poly  = poly_new(c_blinding_coeffs, 2);
   poly c_x_blinded = poly_mul(&c_blinding_poly, &p->z_h_x);
   poly c_x = poly_add(&c_x_blinded, &f_c_x);
@@ -369,7 +371,7 @@ proof plonk_prove(
   poly_free(&c_x_blinded);
 
   // step 5: round 2 - evaluate the accumultor vector polynomial at s
-  u8_fe b7 = rand[6], b8 = rand[7], b9 = rand[8];
+  hf_fe b7 = rand[6], b8 = rand[7], b9 = rand[8];
 
   // initialize accumulator vector with 1
   u8_fe *acc = (u8_fe *)malloc(p->h_len *sizeof(u8_fe));
@@ -381,33 +383,33 @@ proof plonk_prove(
 
   for (size_t i = 1; i <= n; i++) {
     // assignments at positoin i - 1
-    u8_fe as_a = a->a[i - 1];
-    u8_fe as_b = a->b[i - 1];
-    u8_fe as_c = a->c[i - 1];
+    hf_fe as_a = a->a[i - 1];
+    hf_fe as_b = a->b[i - 1];
+    hf_fe as_c = a->c[i - 1];
 
     // omega_pow = omega^(i-1)
-    u8_fe omega_pow = u8_fe_pow(omega, i - 1);
+    hf_fe omega_pow = hf_fe_pow(omega, i - 1);
 
     // denominator and numerator computations
-    u8_fe denom = u8_fe_mul(
-        u8_fe_mul(
-            u8_fe_add(as_a, u8_fe_add(u8_fe_mul(beta, omega_pow), gamma)),
-            u8_fe_add(as_b, u8_fe_add(u8_fe_mul(beta, u8_fe_mul(k1, omega_pow)), gamma))
+    hf_fe denom = hf_fe_mul(
+        hf_fe_mul(
+            hf_fe_add(as_a, hf_fe_add(hf_fe_mul(beta, omega_pow), gamma)),
+            hf_fe_add(as_b, hf_fe_add(hf_fe_mul(beta, hf_fe_mul(k1, omega_pow)), gamma))
                   ),
         u8_fe_add(as_c, u8_fe_add(u8_fe_mul(beta, u8_fe_mul(k2, omega_pow)), gamma))
 			    );
 
     // s_sigma evaluations at omega_pow
-    u8_fe s_sigma_1_eval = poly_eval(&s_sigma_1, omega_pow);
-    u8_fe s_sigma_2_eval = poly_eval(&s_sigma_2, omega_pow);
-    u8_fe s_sigma_3_eval = poly_eval(&s_sigma_3, omega_pow);
+    u8_fe s_sigma_1_eval = poly_eval(&s_sigma_1, f101(omega_pow.value));
+    u8_fe s_sigma_2_eval = poly_eval(&s_sigma_2, f101(omega_pow.value));
+    u8_fe s_sigma_3_eval = poly_eval(&s_sigma_3, f101(omega_pow.value));
 
-    u8_fe numer = u8_fe_mul(
-        u8_fe_mul(
-            u8_fe_add(as_a, u8_fe_add(u8_fe_mul(beta, s_sigma_1_eval), gamma)),
-            u8_fe_add(as_b, u8_fe_add(u8_fe_mul(beta, s_sigma_2_eval), gamma))
+    hf_fe numer = hf_fe_mul(
+        hf_fe_mul(
+            hf_fe_add(as_a, hf_fe_add(hf_fe_mul(beta, s_sigma_1_eval), gamma)),
+            hf_fe_add(as_b, hf_fe_add(hf_fe_mul(beta, s_sigma_2_eval), gamma))
                   ),
-        u8_fe_add(as_c, u8_fe_add(u8_fe_mul(beta, s_sigma_3_eval), gamma))
+        hf_fe_add(as_c, hf_fe_add(u8_fe_mul(beta, s_sigma_3_eval), gamma))
                             );
 
     u8_fe fraction = u8_fe_div(denom, numer);
