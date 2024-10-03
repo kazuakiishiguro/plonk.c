@@ -7,7 +7,7 @@ void test_pairing_vectors() {
   g1_p p = gen1;
   g1_p r = g1_p_mul(&gen1, 4);
   g2_p q = g2_p_mul(gen2, 3);
-  u8_fe a = u8_fe_new(5);
+  GF a = gf_new(5);
 
   g1_p p_mul_a = g1_p_mul(&p, a.value);
   gtp left = pairing(&p_mul_a, &q);
