@@ -5,7 +5,7 @@
 #include "gf.h"
 
 typedef struct {
-  u8_fe x, y;
+  GF x, y;
 } g2_p;
 
 g2_p g2_p_new(uint64_t x, uint64_t y) {
@@ -25,42 +25,42 @@ uint64_t g2_p_embedding_degree() {
 }
 
 g2_p g2_p_neg(g2_p *p) {
-  u8_fe neg_y = u8_fe_neg(p->y);
+  GF neg_y = gf_neg(p->y);
   return g2_p_new(p->x.value, neg_y.value);
 }
 
 g2_p g2_p_add(const g2_p *p, const g2_p *q) {
-  u8_fe x, y;
+  GF x, y;
 
-  if (u8_fe_equal(p->x, q->x) && u8_fe_equal(p->y, q->y)) {
-    u8_fe two = f101(2);
-    u8_fe three = f101(3);
-    u8_fe x1 = p->x;
-    u8_fe y1 = p->y;
-    u8_fe x_sq = u8_fe_mul(x1, x1);
-    u8_fe num = u8_fe_mul(three, x_sq);
-    u8_fe div = u8_fe_mul(two, y1);
-    u8_fe m = u8_fe_div(num, div);
-    u8_fe m_sq= u8_fe_mul(m, m);
-    u8_fe neg_two = u8_fe_neg(two);
-    u8_fe neg_two_inv = u8_fe_inv(neg_two);
-    u8_fe m_sq_neg_two = u8_fe_mul(m_sq, neg_two_inv);
-    x = u8_fe_sub(m_sq_neg_two, u8_fe_mul(two, x1));
-    y = u8_fe_sub(u8_fe_mul(u8_fe_mul(neg_two_inv, m), u8_fe_sub(u8_fe_mul(three, x1), m_sq_neg_two)), y1);
+  if (gf_equal(p->x, q->x) && gf_equal(p->y, q->y)) {
+    GF two = f101(2);
+    GF three = f101(3);
+    GF x1 = p->x;
+    GF y1 = p->y;
+    GF x_sq = gf_mul(x1, x1);
+    GF num = gf_mul(three, x_sq);
+    GF div = gf_mul(two, y1);
+    GF m = gf_div(num, div);
+    GF m_sq= gf_mul(m, m);
+    GF neg_two = gf_neg(two);
+    GF neg_two_inv = gf_inv(neg_two);
+    GF m_sq_neg_two = gf_mul(m_sq, neg_two_inv);
+    x = gf_sub(m_sq_neg_two, gf_mul(two, x1));
+    y = gf_sub(gf_mul(gf_mul(neg_two_inv, m), gf_sub(gf_mul(three, x1), m_sq_neg_two)), y1);
   } else {
-    u8_fe x1 = p->x;
-    u8_fe y1 = p->y;
-    u8_fe x2 = q->x;
-    u8_fe y2 = q->y;
-    u8_fe num = u8_fe_sub(y2, y1);
-    u8_fe div = u8_fe_sub(x2, x1);
-    u8_fe m = u8_fe_div(num, div);
-    u8_fe two = f101(2);
-    u8_fe neg_two = u8_fe_neg(two);
-    u8_fe m_sq = u8_fe_mul(m, m);
-    u8_fe m_sq_neg_two = u8_fe_mul(m_sq, neg_two);
-    x = u8_fe_sub(u8_fe_sub(m_sq_neg_two, x1), x2);
-    y = u8_fe_sub(u8_fe_mul(m, u8_fe_sub(x1, x)), y1);
+    GF x1 = p->x;
+    GF y1 = p->y;
+    GF x2 = q->x;
+    GF y2 = q->y;
+    GF num = gf_sub(y2, y1);
+    GF div = gf_sub(x2, x1);
+    GF m = gf_div(num, div);
+    GF two = f101(2);
+    GF neg_two = gf_neg(two);
+    GF m_sq = gf_mul(m, m);
+    GF m_sq_neg_two = gf_mul(m_sq, neg_two);
+    x = gf_sub(gf_sub(m_sq_neg_two, x1), x2);
+    y = gf_sub(gf_mul(m, gf_sub(x1, x)), y1);
   }
   return g2_p_new(x.value, y.value);
 }
