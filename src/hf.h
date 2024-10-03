@@ -13,10 +13,15 @@ typedef struct {
   uint8_t value;
 } HF;
 
-HF hf_new(uint8_t x) {
-  HF result;
-  result.value = x % MODULO_HF;
-  return result;
+HF hf_new(uint8_t value) {
+  int64_t tmp = value % MODULO_HF;
+  if (tmp < 0) {
+    tmp += MODULO_HF;
+  }
+
+  HF hf;
+  hf.value = value % MODULO_HF;
+  return hf;
 }
 
 HF f17(int64_t n) {
@@ -52,13 +57,9 @@ HF hf_pow(HF base, uint32_t exponent) {
   return result;
 }
 
-HF hf_inv(HF a) {
-  if (a.value == 0) {
-    fprintf(stderr, "Attempt to invert zero in finite field\n");
-    exit(EXIT_FAILURE);
-  }
+HF hf_inv(HF field) {
   // Using Fermat's Little Theorem: a^(p-2) mod p
-  return hf_pow(a, MODULO_HF - 2);
+  return hf_pow(field, MODULO_HF - 2);
 }
 
 HF hf_div(HF a, HF b) {
