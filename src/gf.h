@@ -70,7 +70,7 @@ GF gf_mul(GF a, GF b) {
 }
 
 GF gf_neg(GF a) {
-  if (a.value == 0) return gf_new(0);
+  if (a.value == 0) return gf_zero();
   GF r;
   r.value = MODULO_GF - a.value;
   return r;
@@ -95,8 +95,7 @@ GF gf_inv(GF field) {
 }
 
 GF gf_div(GF a, GF b) {
-  GF inv_b = gf_inv(b);
-  return gf_mul(a, inv_b);
+  return gf_mul(a, gf_inv(b));
 }
 
 GF gf_from_hf(HF hf_elem) {

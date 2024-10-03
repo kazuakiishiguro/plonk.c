@@ -28,33 +28,59 @@ HF f17(int64_t n) {
   return hf_new(n);
 }
 
+HF hf_zero() {
+  return hf_new(0);
+}
+
+HF hf_one() {
+  return hf_new(1);
+}
+
 bool hf_equal(HF a, HF b) {
   return a.value == b.value;
 }
 
 HF hf_add(HF a, HF b) {
-  return hf_new((a.value + b.value) % MODULO_HF);
+  uint16_t sum = a.value + b.value;
+  if (sum >= MODULO_HF) sum -= MODULO_HF;
+  HF r;
+  r.value = (uint8_t)sum;
+  return r;
 }
 
 HF hf_sub(HF a, HF b) {
-  return hf_new((a.value + MODULO_HF - b.value) % MODULO_HF);
+  int16_t diff = (int16_t)a.value - (int16_t)b.value;
+  if (diff < 0) diff += MODULO_HF;
+  HF r;
+  r.value = (uint8_t)diff;
+  return r;
 }
 
 HF hf_mul(HF a, HF b) {
-  return hf_new((a.value * b.value) % MODULO_HF);
+  uint16_t product = (uint16_t)a.value * (uint16_t)b.value;
+  HF r;
+  r.value = product % MODULO_HF;
+  return r;
 }
 
-HF hf_pow(HF base, uint32_t exponent) {
-  HF result = hf_new(1);
-  HF b = base;
-  while (exponent > 0) {
-    if (exponent % 2 == 1) {
-      result = hf_mul(result, b);
+HF hf_neg(HF a) {
+  if (a.value == 0) return hf_zero();
+  HF r;
+  r.value = MODULO_HF - a.value;
+  return r;
+}
+
+HF hf_pow(HF field, uint64_t exp) {
+  HF r = hf_new(1);
+  HF base = field;
+  while (exp > 0) {
+    if (exp % 2 == 1) {
+      r = hf_mul(r, base);
     }
-    b = hf_mul(b, b);
-    exponent /= 2;
+    exp = exp >> 1;
+    base = hf_mul(base, base);
   }
-  return result;
+  return r;
 }
 
 HF hf_inv(HF field) {
