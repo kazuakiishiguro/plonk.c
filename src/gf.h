@@ -99,7 +99,7 @@ GF gf_div(GF a, GF b) {
   return gf_mul(a, inv_b);
 }
 
-GF gf_from_hf(hf_fe hf_elem) {
+GF gf_from_hf(HF hf_elem) {
   return gf_new(hf_elem.value);
 }
 
