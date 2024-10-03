@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "fe.h"
+#include "gf.h"
 
 typedef struct {
   u8_fe *coeffs;

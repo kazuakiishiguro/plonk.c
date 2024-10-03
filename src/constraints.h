@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "fe.h"
+#include "gf.h"
 
 // the gate enforces the constraint:
 // q_l*a + q_r*b + q_o*c + q_m*a*b + q_c = 0
