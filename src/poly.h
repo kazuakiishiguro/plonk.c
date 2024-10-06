@@ -8,21 +8,21 @@
 #include "gf.h"
 
 typedef struct {
-  u8_fe *coeffs;
+  GF *coeffs;
   size_t len;
 } poly;
 
 void poly_normalize(poly *p) {
-  while (p->len > 1 && u8_fe_equal(p->coeffs[p->len - 1], u8_fe_new(0))) {
+  while (p->len > 1 && gf_equal(p->coeffs[p->len - 1], gf_new(0))) {
     p->len--;
   }
-  p->coeffs = realloc(p->coeffs, p->len * sizeof(u8_fe));
+  p->coeffs = realloc(p->coeffs, p->len * sizeof(GF));
 };
 
-poly poly_new(u8_fe *coeffs, size_t len) {
+poly poly_new(GF *coeffs, size_t len) {
   poly p;
   p.len = len;
-  p.coeffs = (u8_fe *)malloc(len * sizeof(u8_fe));
+  p.coeffs = (GF *)malloc(len * sizeof(GF));
   if (!p.coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_new\n");
     exit(EXIT_FAILURE);
@@ -36,30 +36,30 @@ poly poly_new(u8_fe *coeffs, size_t len) {
 }
 
 poly poly_zero() {
-  u8_fe zero = u8_fe_new(0);
+  GF zero = gf_new(0);
   return poly_new(&zero, 1);
 }
 
 poly poly_one() {
-  u8_fe one = u8_fe_new(1);
+  GF one = gf_new(1);
   return poly_new(&one, 1);
 }
 
 bool poly_is_zero(const poly *p) {
-  return (p->len == 1 && u8_fe_equal(p->coeffs[0], u8_fe_new(0)));
+  return (p->len == 1 && gf_equal(p->coeffs[0], gf_new(0)));
 }
 
 poly poly_add(const poly *a, const poly *b) {
   size_t max_len = (a->len > b->len) ? a->len : b->len;
-  u8_fe *coeffs = (u8_fe *)malloc(max_len * sizeof(u8_fe));
+  GF *coeffs = (GF *)malloc(max_len * sizeof(GF));
   if (!coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_add\n");
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < max_len; i++) {
-    u8_fe a_coeff = (i < a->len) ? a->coeffs[i] : u8_fe_new(0);
-    u8_fe b_coeff = (i < b->len) ? b->coeffs[i] : u8_fe_new(0);
-    coeffs[i] = u8_fe_add(a_coeff, b_coeff);
+    GF a_coeff = (i < a->len) ? a->coeffs[i] : gf_new(0);
+    GF b_coeff = (i < b->len) ? b->coeffs[i] : gf_new(0);
+    coeffs[i] = gf_add(a_coeff, b_coeff);
   }
   poly p = poly_new(coeffs, max_len);
   free(coeffs);
@@ -68,15 +68,15 @@ poly poly_add(const poly *a, const poly *b) {
 
 poly poly_sub(const poly *a, const poly *b) {
   size_t max_len = (a->len > b->len) ? a->len : b->len;
-  u8_fe *coeffs = (u8_fe *)malloc(max_len * sizeof(u8_fe));
+  GF *coeffs = (GF *)malloc(max_len * sizeof(GF));
   if (!coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_sub\n");
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < max_len; i++) {
-    u8_fe a_coeff = (i < a->len) ? a->coeffs[i] : u8_fe_new(0);
-    u8_fe b_coeff = (i < b->len) ? b->coeffs[i] : u8_fe_new(0);
-    coeffs[i] = u8_fe_sub(a_coeff, b_coeff);
+    GF a_coeff = (i < a->len) ? a->coeffs[i] : gf_new(0);
+    GF b_coeff = (i < b->len) ? b->coeffs[i] : gf_new(0);
+    coeffs[i] = gf_sub(a_coeff, b_coeff);
   }
   poly p = poly_new(coeffs, max_len);
   free(coeffs);
@@ -85,15 +85,15 @@ poly poly_sub(const poly *a, const poly *b) {
 
 poly poly_mul(const poly *a, const poly *b) {
   size_t result_len = a->len + b->len - 1;
-  u8_fe *coeffs = (u8_fe *)calloc(result_len, sizeof(u8_fe));
+  GF *coeffs = (GF *)calloc(result_len, sizeof(GF));
   if (!coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_mul\n");
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < a->len; i++) {
     for (size_t j = 0; j < b->len; j++) {
-      u8_fe product = u8_fe_mul(a->coeffs[i], b->coeffs[j]);
-      coeffs[i + j] = u8_fe_add(coeffs[i + j], product);
+      GF product = gf_mul(a->coeffs[i], b->coeffs[j]);
+      coeffs[i + j] = gf_add(coeffs[i + j], product);
     }
   }
   poly p = poly_new(coeffs, result_len);
@@ -103,7 +103,7 @@ poly poly_mul(const poly *a, const poly *b) {
 
 void poly_divide(const poly *numerator, const poly *denominator, poly *quotient, poly *remainder) {
   // ensure the denominator is not zero
-  if (denominator->len == 0 || u8_fe_equal(denominator->coeffs[denominator->len - 1], u8_fe_new(0))) {
+  if (denominator->len == 0 || gf_equal(denominator->coeffs[denominator->len - 1], gf_new(0))) {
     fprintf(stderr, "Division by zero polynomial in poly_divide\n");
     exit(EXIT_FAILURE);
   }
@@ -111,8 +111,8 @@ void poly_divide(const poly *numerator, const poly *denominator, poly *quotient,
   // initialize quotient and remainder
   size_t num_len = numerator->len;
   size_t den_len = denominator->len;
-  u8_fe *quot_coeffs = (u8_fe *)calloc(num_len, sizeof(u8_fe));
-  u8_fe *rem_coeffs = (u8_fe *)calloc(num_len, sizeof(u8_fe));
+  GF *quot_coeffs = (GF *)calloc(num_len, sizeof(GF));
+  GF *rem_coeffs = (GF *)calloc(num_len, sizeof(GF));
   if (!quot_coeffs || !rem_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_divide\n");
     exit(EXIT_FAILURE);
@@ -123,27 +123,27 @@ void poly_divide(const poly *numerator, const poly *denominator, poly *quotient,
     rem_coeffs[i] = numerator->coeffs[i];
   }
 
-  u8_fe den_lead_inv = u8_fe_inv(denominator->coeffs[den_len - 1]);
+  GF den_lead_inv = gf_inv(denominator->coeffs[den_len - 1]);
 
   for (ssize_t i = num_len - 1; i >= (ssize_t)(den_len - 1); i--) {
     // compute the coefficient for the current term of the quotient
-    u8_fe coeff = u8_fe_mul(rem_coeffs[i], den_lead_inv);
+    GF coeff = gf_mul(rem_coeffs[i], den_lead_inv);
     quot_coeffs[i - (den_len - 1)] = coeff;
 
     // subtract the scaled denominator from the remainder
     for (ssize_t j = 0; j < (ssize_t)den_len; j++) {
-      rem_coeffs[i - j] = u8_fe_sub(rem_coeffs[i - j], u8_fe_mul(coeff, denominator->coeffs[den_len - 1 - j]));
+      rem_coeffs[i - j] = gf_sub(rem_coeffs[i - j], gf_mul(coeff, denominator->coeffs[den_len - 1 - j]));
     }
   }
 
   // remove leading zeros from quotient and remainder
   size_t quot_len = num_len - den_len + 1;
-  while (quot_len > 0 && u8_fe_equal(quot_coeffs[quot_len - 1], u8_fe_new(0))) {
+  while (quot_len > 0 && gf_equal(quot_coeffs[quot_len - 1], gf_new(0))) {
     quot_len--;
   }
 
   size_t rem_len = den_len - 1;
-  while (rem_len > 0 && u8_fe_equal(rem_coeffs[rem_len - 1], u8_fe_new(0))) {
+  while (rem_len > 0 && gf_equal(rem_coeffs[rem_len - 1], gf_new(0))) {
     rem_len--;
   }
 
@@ -157,14 +157,14 @@ void poly_divide(const poly *numerator, const poly *denominator, poly *quotient,
 }
 
 
-poly poly_scale(const poly *p, u8_fe scalar) {
-  u8_fe *coeffs = (u8_fe *)calloc(p->len, sizeof(u8_fe));
+poly poly_scale(const poly *p, GF scalar) {
+  GF *coeffs = (GF *)calloc(p->len, sizeof(GF));
   if (!coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_scale\n");
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < p->len; i++) {
-    coeffs[i] = u8_fe_mul(p->coeffs[i], scalar);
+    coeffs[i] = gf_mul(p->coeffs[i], scalar);
   }
   poly result = poly_new(coeffs, p->len);
   free(coeffs);
@@ -174,7 +174,7 @@ poly poly_scale(const poly *p, u8_fe scalar) {
 poly poly_shift(const poly *p, size_t shift) {
   // Multiply polynomial by x^shift
   size_t new_len = p->len + shift;
-  u8_fe *new_coeffs = (u8_fe *)calloc(new_len, sizeof(u8_fe));
+  GF *new_coeffs = (GF *)calloc(new_len, sizeof(GF));
   if (!new_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_shift\n");
     exit(EXIT_FAILURE);
@@ -193,7 +193,7 @@ poly poly_slice(const poly *p, size_t start, size_t end) {
     exit(EXIT_FAILURE);
   }
   size_t new_len = end - start;
-  u8_fe *new_coeffs = (u8_fe *)malloc(new_len * sizeof(u8_fe));
+  GF *new_coeffs = (GF *)malloc(new_len * sizeof(GF));
   if (!new_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_slice\n");
     exit(EXIT_FAILURE);
@@ -207,13 +207,13 @@ poly poly_slice(const poly *p, size_t start, size_t end) {
 }
 
 poly poly_negate(const poly *p) {
-  u8_fe *neg_coeffs = (u8_fe *)malloc(p->len * sizeof(u8_fe));
+  GF *neg_coeffs = (GF *)malloc(p->len * sizeof(GF));
   if (!neg_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_negate\n");
     exit(EXIT_FAILURE);
   }
   for (size_t i = 0; i < p->len; i++) {
-    neg_coeffs[i] = u8_fe_neg(p->coeffs[i]);
+    neg_coeffs[i] = gf_neg(p->coeffs[i]);
   }
   poly result = poly_new(neg_coeffs, p->len);
   free(neg_coeffs);
@@ -228,22 +228,22 @@ void poly_free(poly *p) {
   p->len = 0;
 }
 
-u8_fe poly_eval(const poly *p, u8_fe x) {
-  u8_fe x_pow = u8_fe_one();
-  u8_fe y = u8_fe_zero();
+GF poly_eval(const poly *p, GF x) {
+  GF x_pow = gf_one();
+  GF y = gf_zero();
   for (size_t i = 0; i < p->len; i++) {
-    u8_fe term = u8_fe_mul(x_pow, p->coeffs[i]);
-    y = u8_fe_add(y, term);
-    x_pow = u8_fe_mul(x_pow, x);
+    GF term = gf_mul(x_pow, p->coeffs[i]);
+    y = gf_add(y, term);
+    x_pow = gf_mul(x_pow, x);
   }
   return y;
 }
 
-poly poly_z(const u8_fe *points, size_t len) {
+poly poly_z(const GF *points, size_t len) {
   poly acc = poly_one();
   for (size_t i = 0; i < len; i++) {
-    u8_fe neg_x = u8_fe_neg(points[i]);
-    u8_fe coeffs[] = {neg_x, u8_fe_new(1)};
+    GF neg_x = gf_neg(points[i]);
+    GF coeffs[] = {neg_x, gf_new(1)};
     poly term = poly_new(coeffs, 2);
     poly temp = poly_mul(&acc, &term);
     poly_free(&acc);
@@ -252,21 +252,21 @@ poly poly_z(const u8_fe *points, size_t len) {
   return acc;
 }
 
-poly poly_lagrange(const u8_fe *x_points, const u8_fe *y_points, size_t len) {
+poly poly_lagrange(const GF *x_points, const GF *y_points, size_t len) {
   poly l = poly_zero();
   for (size_t j = 0; j < len; j++) {
     poly l_j = poly_one();
     for (size_t i = 0; i < len; i++) {
       if (i != j) {
-        u8_fe denom = u8_fe_sub(x_points[j], x_points[i]);
-	u8_fe denom_inv = u8_fe_inv(denom);
+        GF denom = gf_sub(x_points[j], x_points[i]);
+	GF denom_inv = gf_inv(denom);
 	if (denom_inv.value == 0) {
 	  fprintf(stderr, "Error: Lagrange polynomial x points must be unique\n");
 	  exit(EXIT_FAILURE);
 	}
-	u8_fe c = denom_inv;
-	u8_fe neg_cxi = u8_fe_neg(u8_fe_mul(c, x_points[i]));
-	u8_fe coeffs[] = {neg_cxi, c};
+	GF c = denom_inv;
+	GF neg_cxi = gf_neg(gf_mul(c, x_points[i]));
+	GF coeffs[] = {neg_cxi, c};
 	poly term = poly_new(coeffs, 2);
 	poly temp = poly_mul(&l_j, &term);
 	poly_free(&l_j);
