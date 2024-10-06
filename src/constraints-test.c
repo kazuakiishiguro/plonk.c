@@ -6,56 +6,56 @@
 
 void test_expr() {
   // initialize variable map and gate list
-  var_map vars;
+  VAR_MAP vars;
   var_map_init(&vars);
 
-  gate_list gates;
+  GATE_LIST gates;
   gate_list_init(&gates);
 
   // define expressions
-  expression *a = (expression *)malloc(sizeof(expression));
+  EXPRESSION *a = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   a->type = EXPR_VAR;
   a->data.var_name = "a";
 
-  expression *b = (expression *)malloc(sizeof(expression));
+  EXPRESSION *b = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   b->type = EXPR_VAR;
   b->data.var_name = "b";
 
-  expression *c = (expression *)malloc(sizeof(expression));
+  EXPRESSION *c = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   c->type = EXPR_VAR;
   c->data.var_name = "c";
 
   // construct the expression: (a * a) + (b * b) - (c * c)
-  expression *aa = (expression *)malloc(sizeof(expression));
+  EXPRESSION *aa = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   aa->type = EXPR_MUL;
   aa->data.binary.left = a;
   aa->data.binary.right = a;
 
-  expression *bb = (expression *)malloc(sizeof(expression));
+  EXPRESSION *bb = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   bb->type = EXPR_MUL;
   bb->data.binary.left = b;
   bb->data.binary.right = b;
 
-  expression *cc = (expression *)malloc(sizeof(expression));
+  EXPRESSION *cc = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   cc->type = EXPR_MUL;
   cc->data.binary.left = c;
   cc->data.binary.right = c;
 
-  expression *sum = (expression *)malloc(sizeof(expression));
+  EXPRESSION *sum = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   sum->type = EXPR_SUM;
   sum->data.binary.left = aa;
   sum->data.binary.right = bb;
 
-  expression *pitagoras = (expression *)malloc(sizeof(expression));
+  EXPRESSION *pitagoras = (EXPRESSION *)malloc(sizeof(EXPRESSION));
   pitagoras->type = EXPR_SUB;
   pitagoras->data.binary.left = sum;
   pitagoras->data.binary.right = cc;
 
-  // evaluate the expression and generate gates
+  // evaluate the EXPRESSION and generate gates
   size_t result_index = eval_expr(pitagoras, &vars, &gates);
 
   // add a gate to bind the result to zero
-  gate bind_gate = gate_bind_to_zero();
+  GATE bind_gate = gate_bind_to_zero();
   gate_list_append(&gates, bind_gate, UNUSED_INDEX, UNUSED_INDEX, result_index);
 
   // print variable mappings
@@ -66,16 +66,16 @@ void test_expr() {
   // print gates
   printf("\nGenerated gates:\n");
   for (size_t i = 0; i < gates.num_gates; i++) {
-    gate g = gates.gates[i];
+    GATE gate = gates.gates[i];
     size_t a_idx = gates.a_indices[i];
     size_t b_idx = gates.b_indices[i];
     size_t c_idx = gates.c_indices[i];
 
-    int q_l = (g.q_l.value <= MODULO / 2) ? g.q_l.value : g.q_l.value - MODULO;
-    int q_r = (g.q_r.value <= MODULO / 2) ? g.q_r.value : g.q_r.value - MODULO;
-    int q_o = (g.q_o.value <= MODULO / 2) ? g.q_o.value : g.q_o.value - MODULO;
-    int q_m = (g.q_m.value <= MODULO / 2) ? g.q_m.value : g.q_m.value - MODULO;
-    int q_c = (g.q_c.value <= MODULO / 2) ? g.q_c.value : g.q_c.value - MODULO;
+    int q_l = (gate.q_l.value <= MODULO_HF / 2) ? gate.q_l.value : gate.q_l.value - MODULO_HF;
+    int q_r = (gate.q_r.value <= MODULO_HF / 2) ? gate.q_r.value : gate.q_r.value - MODULO_HF;
+    int q_o = (gate.q_o.value <= MODULO_HF / 2) ? gate.q_o.value : gate.q_o.value - MODULO_HF;
+    int q_m = (gate.q_m.value <= MODULO_HF / 2) ? gate.q_m.value : gate.q_m.value - MODULO_HF;
+    int q_c = (gate.q_c.value <= MODULO_HF / 2) ? gate.q_c.value : gate.q_c.value - MODULO_HF;
 
     const char *a_name = (a_idx != UNUSED_INDEX) ? vars.names[a_idx] : "(unused)";
     const char *b_name = (b_idx != UNUSED_INDEX) ? vars.names[b_idx] : "(unused)";
@@ -110,55 +110,55 @@ void test_constraints_satisfy() {
   // simple constraint system representing c = a + b
   size_t n = 1; // num of constraints
 
-  constraints c;
-  c.num_constraints = n;
-  c.q_l = (u8_fe *)malloc(n * sizeof(u8_fe));
-  c.q_r = (u8_fe *)malloc(n * sizeof(u8_fe));
-  c.q_o = (u8_fe *)malloc(n * sizeof(u8_fe));
-  c.q_m = (u8_fe *)malloc(n * sizeof(u8_fe));
-  c.q_c = (u8_fe *)malloc(n * sizeof(u8_fe));
+  CONSTRAINTS constraints;
+  constraints.num_constraints = n;
+  constraints.q_l = (HF *)malloc(n * sizeof(HF));
+  constraints.q_r = (HF *)malloc(n * sizeof(HF));
+  constraints.q_o = (HF *)malloc(n * sizeof(HF));
+  constraints.q_m = (HF *)malloc(n * sizeof(HF));
+  constraints.q_c = (HF *)malloc(n * sizeof(HF));
 
-  if (!c.q_l || !c.q_r || !c.q_o || !c.q_m || !c.q_c) {
+  if (!constraints.q_l || !constraints.q_r || !constraints.q_o || !constraints.q_m || !constraints.q_c) {
     fprintf(stderr, "Memory allocation failed in test_constraints_satisfy\n");
     exit(EXIT_FAILURE);
   }
 
   // set up the constraint coefficients for c = a + b
   // q_l = 1, q_r = 1, q_o = -1, q_m = 0, q_c = 0
-  c.q_l[0] = u8_fe_one();
-  c.q_r[0] = u8_fe_one();
-  c.q_o[0] = u8_fe_neg(u8_fe_one()); // -1 mod MODULO
-  c.q_m[0] = u8_fe_zero();
-  c.q_c[0] = u8_fe_zero();
+  constraints.q_l[0] = hf_one();
+  constraints.q_r[0] = hf_one();
+  constraints.q_o[0] = hf_neg(hf_one()); // -1 mod MODULO_HF
+  constraints.q_m[0] = hf_zero();
+  constraints.q_c[0] = hf_zero();
 
   // Assignments
-  assignments a;
-  a.len = n;
-  a.a = (u8_fe *)malloc(n * sizeof(u8_fe));
-  a.b = (u8_fe *)malloc(n * sizeof(u8_fe));
-  a.c = (u8_fe *)malloc(n * sizeof(u8_fe));
+  ASSIGNMENTS assignments;
+  assignments.len = n;
+  assignments.a = (HF *)malloc(n * sizeof(HF));
+  assignments.b = (HF *)malloc(n * sizeof(HF));
+  assignments.c = (HF *)malloc(n * sizeof(HF));
 
-  if (!a.a || !a.b || !a.c) {
+  if (!assignments.a || !assignments.b || !assignments.c) {
     fprintf(stderr, "Memory allocation failed in test_constraints_satisfy\n");
     exit(EXIT_FAILURE);
   }
 
   // test case 1: correct assignments (a = 2, b = 3, c = 5)
-  a.a[0] = u8_fe_new(2);
-  a.b[0] = u8_fe_new(3);
-  a.c[0] = u8_fe_new(5);
+  assignments.a[0] = hf_new(2);
+  assignments.b[0] = hf_new(3);
+  assignments.c[0] = hf_new(5);
 
   // check if constraints are satisfied
-  assert(constraints_satisfy(&c, &a));
+  assert(constraints_satisfy(&constraints, &assignments));
 
   // test case 2: incorrect assignments (a = 2, b = 3, c = 6)
-  a.c[0] = u8_fe_new(6);
-  assert(!constraints_satisfy(&c, &a));
+  assignments.c[0] = hf_new(6);
+  assert(!constraints_satisfy(&constraints, &assignments));
 
-  constraints_free(&c);
-  free(a.a);
-  free(a.b);
-  free(a.c);
+  constraints_free(&constraints);
+  free(assignments.a);
+  free(assignments.b);
+  free(assignments.c);
 }
 
 int main() {
