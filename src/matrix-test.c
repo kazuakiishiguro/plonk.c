@@ -1,12 +1,12 @@
 #include <stdbool.h>
 #include "matrix.h"
 
-bool matrix_equal(const matrix *a, const matrix *b) {
+bool matrix_equal(const MATRIX *a, const MATRIX *b) {
   if (a->m != b->m || a->n != b->n)
     return false;
   size_t size = a->n * a->n;
   for (size_t i = 0; i < size; i++) {
-    if (!u8_fe_equal(a->v[i], b->v[i])) {
+    if (!hf_equal(a->v[i], b->v[i])) {
       return false;
     }
   }
@@ -14,13 +14,13 @@ bool matrix_equal(const matrix *a, const matrix *b) {
 }
 
 void test_matrix_add() {
-  u8_fe values_a[] = {f101(1), f101(2)};
-  u8_fe values_b[] = {f101(3), f101(4)};
-  matrix a = matrix_new(values_a, 2, 1);
-  matrix b = matrix_new(values_b, 2, 1);
-  matrix result = matrix_add(&a, &b);
-  u8_fe values_expected[] = {f101(4), f101(6)};
-  matrix expected = matrix_new(values_expected, 2, 1);
+  HF values_a[] = {f17(1), f17(2)};
+  HF values_b[] = {f17(3), f17(4)};
+  MATRIX a = matrix_new(values_a, 2, 1);
+  MATRIX b = matrix_new(values_b, 2, 1);
+  MATRIX result = matrix_add(&a, &b);
+  HF values_expected[] = {f17(4), f17(6)};
+  MATRIX expected = matrix_new(values_expected, 2, 1);
   matrix_equal(&result, &expected);
 
   matrix_free(&a);
@@ -30,13 +30,13 @@ void test_matrix_add() {
 }
 
 void test_matrix_mul() {
-  u8_fe values_a[] = {f101(1), f101(2), f101(3), f101(4), f101(5), f101(6)};
-  u8_fe values_b[] = {f101(10), f101(11), f101(20), f101(21), f101(30), f101(31)};
-  matrix a = matrix_new(values_a, 2, 3);
-  matrix b = matrix_new(values_b, 3, 2);
-  matrix result = matrix_mul(&a, &b);
-  u8_fe values_expected[] = {f101(140), f101(146), f101(320), f101(335)};
-  matrix expected = matrix_new(values_expected, 2, 2);
+  HF values_a[] = {f17(1), f17(2), f17(3), f17(4), f17(5), f17(6)};
+  HF values_b[] = {f17(10), f17(11), f17(20), f17(21), f17(30), f17(31)};
+  MATRIX a = matrix_new(values_a, 2, 3);
+  MATRIX b = matrix_new(values_b, 3, 2);
+  MATRIX result = matrix_mul(&a, &b);
+  HF values_expected[] = {f17(140), f17(146), f17(320), f17(335)};
+  MATRIX expected = matrix_new(values_expected, 2, 2);
   matrix_equal(&result, &expected);
 
   matrix_free(&a);
@@ -46,10 +46,10 @@ void test_matrix_mul() {
 }
 
 void test_matrix_inv() {
-  u8_fe values[] = {f101(1), f101(2), f101(3), f101(4)};
-  matrix mat = matrix_new(values, 2, 2);
-  matrix inv = matrix_inv(&mat);
-  matrix inv_inv = matrix_inv(&inv);
+  HF values[] = {f17(1), f17(2), f17(3), f17(4)};
+  MATRIX mat = matrix_new(values, 2, 2);
+  MATRIX inv = matrix_inv(&mat);
+  MATRIX inv_inv = matrix_inv(&inv);
   matrix_equal(&inv, &inv_inv);
 
   matrix_free(&mat);
