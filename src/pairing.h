@@ -64,7 +64,7 @@ GTP pairing_f(uint64_t r, const G1 *p, const G2 *q) {
 }
 
 GTP pairing(const G1 *g1, const G2 *g2) {
-  uint64_t p_order = MODULO;
+  uint64_t p_order = MODULO_GF;
   uint64_t r = g1_generator_subgroup_size().value;
   uint64_t k = g2_embedding_degree();
 
