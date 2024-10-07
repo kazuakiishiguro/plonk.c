@@ -1,18 +1,19 @@
 #include <assert.h>
+#include "gf.h"
 #include "poly.h"
 
 #define ASSERT_POLY(p1, p2)				 \
   do {							 \
     assert(p1.len == p2.len);				 \
     for (size_t i = 0; i < p1.len; i++)			 \
-	 assert(u8_fe_equal(p1.coeffs[i], p2.coeffs[i]));	\
+	 assert(hf_equal(p1.coeffs[i], p2.coeffs[i]));	\
   } while (0)
 
-void poly_print(const poly *p) {
+void poly_print(const POLY *p) {
      bool first = true;
      for (size_t i = 0; i < p->len; i++) {
-	  u8_fe coeff = p->coeffs[i];
-	  if (!u8_fe_equal(coeff, u8_fe_new(0))) {
+	  HF coeff = p->coeffs[i];
+	  if (!hf_equal(coeff, hf_new(0))) {
 	       if (!first)
 		    printf(" + ");
 	       if (i == 0) {
@@ -34,26 +35,26 @@ void poly_print(const poly *p) {
 }
 
 void test_poly_add() {
-  u8_fe p123[] = {f101(1), f101(2), f101(3)};
-  poly a = poly_new(p123, 3);
-  u8_fe p14[] = {f101(1), f101(4)};
-  poly b = poly_new(p14, 2);
-  poly sum = poly_add(&a, &b);
-  u8_fe p263[] = {f101(2), f101(6), f101(3)};
-  poly expected = poly_new(p263,3);
+  HF p123[] = {f17(1), f17(2), f17(3)};
+  POLY a = poly_new(p123, 3);
+  HF p14[] = {f17(1), f17(4)};
+  POLY b = poly_new(p14, 2);
+  POLY sum = poly_add(&a, &b);
+  HF p263[] = {f17(2), f17(6), f17(3)};
+  POLY expected = poly_new(p263,3);
   ASSERT_POLY(sum, expected);
 
-  u8_fe p12345[] = {f101(1), f101(2), f101(3), f101(4), f101(5)};
-  poly c = poly_new(p12345, 5);
+  HF p12345[] = {f17(1), f17(2), f17(3), f17(4), f17(5)};
+  POLY c = poly_new(p12345, 5);
   sum = poly_add(&a, &c);
-  u8_fe p24645[] = {f101(2), f101(4), f101(6), f101(4), f101(5)};
+  HF p24645[] = {f17(2), f17(4), f17(6), f17(4), f17(5)};
   expected = poly_new(p24645, 5);
   ASSERT_POLY(sum, expected);
 
-  u8_fe p12346[] = {f101(1), f101(2), f101(3), f101(4), f101(6)};
-  poly d = poly_new(p12346, 5);
+  HF p12346[] = {f17(1), f17(2), f17(3), f17(4), f17(6)};
+  POLY d = poly_new(p12346, 5);
   sum = poly_add(&a, &d);
-  u8_fe p24646[] = {f101(2), f101(4), f101(6), f101(4), f101(6)};
+  HF p24646[] = {f17(2), f17(4), f17(6), f17(4), f17(6)};
   expected = poly_new(p24646, 5);
   ASSERT_POLY(sum, expected);
 
@@ -66,16 +67,16 @@ void test_poly_add() {
 }
 
 void test_poly_sub() {
-  u8_fe p123[] = {f101(1), f101(2), f101(3)};
-  poly a = poly_new(p123, 3);
-  poly diff = poly_sub(&a, &a);
-  poly expected = poly_zero();
+  HF p123[] = {f17(1), f17(2), f17(3)};
+  POLY a = poly_new(p123, 3);
+  POLY diff = poly_sub(&a, &a);
+  POLY expected = poly_zero();
   ASSERT_POLY(diff, expected);
 
-  u8_fe p12[] = {f101(1), f101(2)};
-  poly b = poly_new(p12, 2);
+  HF p12[] = {f17(1), f17(2)};
+  POLY b = poly_new(p12, 2);
   diff = poly_sub(&a, &b);
-  u8_fe p003[] = {f101(0), f101(0), f101(3)};
+  HF p003[] = {f17(0), f17(0), f17(3)};
   expected = poly_new(p003, 3);
   ASSERT_POLY(diff, expected);
 
@@ -86,13 +87,13 @@ void test_poly_sub() {
 }
 
 void test_poly_mul() {
-  u8_fe ca[] = {f101(5), f101(0), f101(10), f101(6)};
-  poly a = poly_new(ca, 4);
-  u8_fe cb[] = {f101(1), f101(2), f101(4)};
-  poly b = poly_new(cb, 3);
-  poly product = poly_mul(&a, &b);
-  u8_fe cexp[] = {f101(5), f101(10), f101(30), f101(26), f101(52), f101(24)};
-  poly expected = poly_new(cexp, 6);
+  HF ca[] = {f17(5), f17(0), f17(10), f17(6)};
+  POLY a = poly_new(ca, 4);
+  HF cb[] = {f17(1), f17(2), f17(4)};
+  POLY b = poly_new(cb, 3);
+  POLY product = poly_mul(&a, &b);
+  HF cexp[] = {f17(5), f17(10), f17(30), f17(26), f17(52), f17(24)};
+  POLY expected = poly_new(cexp, 6);
   ASSERT_POLY(product, expected);
 
   poly_free(&a);
@@ -102,20 +103,19 @@ void test_poly_mul() {
 }
 
 void test_poly_eval() {
-  u8_fe coeffs[] = {f101(1), f101(2), f101(1)};
-  poly p = poly_new(coeffs, 3);
-  hf_fe x_hf = hf_fe_new(2);
-  u8_fe x = gf_from_hf(x_hf);
-  u8_fe eval = poly_eval(&p, x);
-  u8_fe expected = f101(9);
-  u8_fe_equal(eval, expected);
+  HF coeffs[] = {f17(1), f17(2), f17(1)};
+  POLY p = poly_new(coeffs, 3);
+  HF x = hf_new(2);
+  HF eval = poly_eval(&p, x);
+  HF expected = f17(9);
+  hf_equal(eval, expected);
 }
 
 void test_poly_z() {
-  u8_fe points[] = {f101(1), f101(5)};
-  poly z = poly_z(points, 2);
-  u8_fe c[] = {f101(5), f101(-6), f101(1)};
-  poly expected = poly_new(c, 3);
+  HF points[] = {f17(1), f17(5)};
+  POLY z = poly_z(points, 2);
+  HF c[] = {f17(5), f17(-6), f17(1)};
+  POLY expected = poly_new(c, 3);
   ASSERT_POLY(z, expected);
 
   poly_free(&z);
@@ -123,15 +123,15 @@ void test_poly_z() {
 }
 
 void test_poly_lagrange() {
-  u8_fe x_points[] = {f101(1), f101(5), f101(7), f101(3)};
-  u8_fe y_points[] = {f101(2), f101(7), f101(9), f101(1)};
+  HF x_points[] = {f17(1), f17(5), f17(7), f17(3)};
+  HF y_points[] = {f17(2), f17(7), f17(9), f17(1)};
   size_t num_points = sizeof(x_points) / sizeof(x_points[0]);
-  poly l = poly_lagrange(x_points, y_points, num_points);
+  POLY l = poly_lagrange(x_points, y_points, num_points);
   for (size_t i = 0; i < num_points;  i++) {
-    u8_fe x = x_points[i];
-    u8_fe expected_y = y_points[i];
-    u8_fe actual_y =  poly_eval(&l, x);
-    assert(u8_fe_equal(actual_y, expected_y));
+    HF x = x_points[i];
+    HF expected_y = y_points[i];
+    HF actual_y =  poly_eval(&l, x);
+    assert(hf_equal(actual_y, expected_y));
   }
   poly_free(&l);
 }
