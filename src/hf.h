@@ -13,14 +13,14 @@ typedef struct {
   uint8_t value;
 } HF;
 
-HF hf_new(uint8_t value) {
+HF hf_new(int64_t value) {
   int64_t tmp = value % MODULO_HF;
   if (tmp < 0) {
     tmp += MODULO_HF;
   }
 
   HF hf;
-  hf.value = value % MODULO_HF;
+  hf.value = (uint8_t)tmp;
   return hf;
 }
 
