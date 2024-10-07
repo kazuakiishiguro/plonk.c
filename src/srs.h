@@ -9,60 +9,59 @@
 #include "poly.h"
 
 typedef struct {
-  g1_p *g1s;  // array of g1 points [1, s, s^2, ..., s^n]
+  G1 *g1s;  // array of g1 points [1, s, s^2, ..., s^n]
   size_t len; // length of the g1s array
-  g2_p g2_1;  // g2 generator
-  g2_p g2_s;  // g2 generator * s
-} srs;
+  G2 g2_1;  // g2 generator
+  G2 g2_s;  // g2 generator * s
+} SRS;
 
-srs srs_create(u8_fe secret, size_t n) {
-  srs s;
-  s.len = n + 1; // including the 0-th power
-  s.g1s = (g1_p *)malloc(s.len * sizeof(g1_p));
-  if (!s.g1s) {
+SRS srs_create(GF secret, size_t n) {
+  SRS srs;
+  srs.len = n + 1; // including the 0-th power
+  srs.g1s = (G1 *)malloc(srs.len * sizeof(G1));
+  if (!srs.g1s) {
     fprintf(stderr, "Mamory allocation failed in srs_create\n");
     exit(EXIT_FAILURE);
   }
 
-  g1_p id = g1_p_identity();
+  G1 id = g1_identity();
 
   // initialize g1s[0] = g1 generator
-  s.g1s[0] = id;
+  srs.g1s[0] = id;
   // compute s^i for i = 1 to n
-  u8_fe s_pow = secret;
-  for (size_t i = 0 ; i < s.len; i++) {
-    s.g1s[i] = g1_p_mul(&id, s_pow.value);
-    s_pow = u8_fe_mul(s_pow, secret);
+  GF s_pow = secret;
+  for (size_t i = 0 ; i < srs.len; i++) {
+    srs.g1s[i] = g1_mul(&id, s_pow.value);
+    s_pow = gf_mul(s_pow, secret);
   }
 
   // initialize g2s
-  s.g2_1 = g2_p_generator();
-  s.g2_s = g2_p_mul(s.g2_1, secret.value);
+  srs.g2_1 = g2_generator();
+  srs.g2_s = g2_mul(srs.g2_1, secret.value);
 
-  return s;
+  return srs;
 }
 
-void srs_free(srs *s) {
-  if (s->g1s) {
-    free(s->g1s);
-    s->g1s = NULL;
+void srs_free(SRS *srs) {
+  if (srs->g1s) {
+    free(srs->g1s);
+    srs->g1s = NULL;
   }
-  s->len = 0;
-
+  srs->len = 0;
 }
 
-g1_p srs_eval_at_s(const srs *s, const poly *vs) {
-  if (vs->len > s->len) {
-       fprintf(stderr, "Poynomial degree exceeds SRS size: poly degree: %zu, srs supports up to degree: %zu \n", vs->len, vs->len);
+G1 srs_eval_at_s(const SRS *srs, const POLY *vs) {
+  if (vs->len > srs->len) {
+       fprintf(stderr, "Poynomial degree exceeds SRS size: POLY degree: %zu, SRS supports up to degree: %zu \n", vs->len, vs->len);
     exit(EXIT_FAILURE);
   }
   // compute a(s) = sum_{i=0}^{n-1} vs.coeffs[i] * g1s[i]
-  g1_p acc = g1_p_identity();
+  G1 acc = g1_identity();
   for (size_t i = 0; i < vs->len; i++) {
     // multiply gls[i] by vs.coeffs[i]
-    u8_fe coeff = vs->coeffs[i];
-    g1_p term = g1_p_mul(&s->g1s[i], coeff.value);
-    acc = g1_p_add(&acc, &term);
+    HF coeff = vs->coeffs[i];
+    G1 term = g1_mul(&srs->g1s[i], coeff.value);
+    acc = g1_add(&acc, &term);
   }
 
   return acc;
