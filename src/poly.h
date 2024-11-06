@@ -46,7 +46,14 @@ POLY poly_one() {
 }
 
 bool poly_is_zero(const POLY *polynomial) {
-  return (polynomial->len == 1 && hf_equal(polynomial->coeffs[0], hf_new(0)));
+  if (polynomial->len == 0) {
+    return true;
+  }
+  for (size_t i = 0; i < polynomial->len; i++) {
+    if (!hf_equal(polynomial->coeffs[i], hf_zero()))
+      return false;
+  }
+  return true;
 }
 
 POLY poly_add(const POLY *a, const POLY *b) {

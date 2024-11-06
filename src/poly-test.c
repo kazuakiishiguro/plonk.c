@@ -102,6 +102,60 @@ void test_poly_mul() {
   poly_free(&expected);
 }
 
+void test_poly_negate() {
+  // p(x) = x^2 + 2x + 3
+  HF coeffs[] = {f17(3), f17(2), f17(1)};
+  POLY p = poly_new(coeffs, 3);
+  POLY neg_p = poly_negate(&p);
+  assert(neg_p.len == 3);
+  assert(neg_p.coeffs[0].value == hf_neg(hf_new(3)).value);
+  assert(neg_p.coeffs[1].value == hf_neg(hf_new(2)).value);
+  assert(neg_p.coeffs[2].value == hf_neg(hf_new(1)).value);
+
+  poly_free(&p);
+  poly_free(&neg_p);
+}
+
+void test_poly_scale() {
+  // p(x) = x^2 + 2x + 3
+  HF coeffs_p[] = {hf_new(3), hf_new(2), hf_new(1)};
+  POLY p = poly_new(coeffs_p, 3);
+
+  HF scalar = hf_new(4);
+  POLY scaled_p = poly_scale(&p, scalar);
+
+  assert(scaled_p.len == 3);
+  assert(scaled_p.coeffs[0].value == (3 * 4) % 17);
+  assert(scaled_p.coeffs[1].value == (2 * 4) % 17);
+  assert(scaled_p.coeffs[2].value == (1 * 4) % 17);
+
+  poly_free(&p);
+  poly_free(&scaled_p);
+}
+
+void test_poly_div() {
+  // let p(x) = (x-3)(x-5) over HF (mod 17)
+  HF coeffs_p[] = {hf_mul(hf_new(3), hf_new(5)), hf_neg(hf_add(hf_new(3), hf_new(5))), hf_new(1)};
+  POLY p_x = poly_new(coeffs_p, 3);
+  // divide p(x) by (x - 3)
+  POLY divisor = poly_new((HF[]){hf_neg(hf_new(3)), hf_new(1)}, 2);
+  POLY quotient, remainder;
+  poly_divide(&p_x, &divisor, &quotient, &remainder);
+
+  // verify that remainder is zero
+  assert(poly_is_zero(&remainder));
+
+  // verify that quotient is (x - 5)
+  POLY expected_quotient = poly_new((HF[]){hf_neg(hf_new(5)), hf_new(1)}, 2);
+  ASSERT_POLY(quotient, expected_quotient);
+
+  poly_free(&p_x);
+  poly_free(&divisor);
+  poly_free(&quotient);
+  poly_free(&remainder);
+  poly_free(&expected_quotient);
+}
+
 void test_poly_eval() {
   HF coeffs[] = {f17(1), f17(2), f17(1)};
   POLY p = poly_new(coeffs, 3);
@@ -139,6 +193,10 @@ void test_poly_lagrange() {
 int main() {
   test_poly_add();
   test_poly_sub();
+  test_poly_mul();
+  test_poly_negate();
+  test_poly_scale();
+  test_poly_div();
   test_poly_eval();
   test_poly_z();
   test_poly_lagrange();
