@@ -142,7 +142,6 @@ CONSTRAINTS constraints_new(GATE *gates, size_t num_gates, COPY_OF *c_a, COPY_OF
   return cons;
 }
 
-
 bool constraints_satisfy(const CONSTRAINTS *c, const ASSIGNMENTS *a) {
   size_t n = c->num_constraints;
   for (size_t i = 0; i < n; i ++) {
@@ -163,6 +162,7 @@ bool constraints_satisfy(const CONSTRAINTS *c, const ASSIGNMENTS *a) {
 
     // check if lhs is zero
     if (!hf_equal(lhs, hf_zero())) {
+      printf("Constraint %zu not satisfied.\n", i);
       return false;
     }
   }
