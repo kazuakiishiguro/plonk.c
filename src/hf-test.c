@@ -38,8 +38,97 @@ void test_vector() {
 
 }
 
+void test_hf_add() {
+  for (uint8_t a = 0; a < 17; a++) {
+    for (uint8_t b = 0; b < 17; b++) {
+      HF r = hf_add(hf_new(a), hf_new(b));
+      HF expected = hf_new(a+b);
+      assert(hf_equal(r, expected));
+    }
+  }
+}
+
+void test_hf_sub() {
+  for (uint8_t a = 0; a < 17; a++) {
+    for (uint8_t b = 0; b < 17; b++) {
+      HF r = hf_sub(hf_new(a), hf_new(b));
+      HF expected = hf_new(a-b);
+      assert(hf_equal(r, expected));
+    }
+  }
+}
+
+void test_hf_mul() {
+  for (uint8_t a = 0; a < 17; a++) {
+    for (uint8_t b = 0; b < 17; b++) {
+      HF r = hf_mul(hf_new(a), hf_new(b));
+      HF expected = hf_new(a * b);
+      assert(hf_equal(r, expected));
+    }
+  }
+}
+
+void test_hf_neg() {
+  for (uint8_t a = 0; a < 17; a++) {
+    HF r = hf_neg(hf_new(a));
+    uint8_t expected = (a == 0) ? 0 : (17 - a);
+    assert(r.value == expected);
+  }
+}
+
+void test_hf_pow() {
+  for (uint8_t base = 0; base < 17; base++) {
+    for (uint8_t exp = 0; exp < 17; exp++) {
+      HF r = hf_pow(hf_new(base), exp);
+      uint8_t expected = 1;
+      for (uint8_t i = 0; i < exp; i++) {
+        expected = (expected * base) % 17;
+      }
+      assert(r.value == expected);
+    }
+  }
+}
+
+void test_hf_inv() {
+  for (uint8_t a = 1; a < 17; a++) { // skip zero as it doesn't have an inverse
+    HF r = hf_inv(hf_new(a));
+    uint8_t expected = 0;
+    for (uint8_t x = 1; x < 17; x++) {
+      if ((a * x) % 17 == 1) {
+        expected = x;
+        break;
+      }
+    }
+    assert(r.value == expected);
+  }
+}
+
+void test_hf_div() {
+  for (uint8_t a = 0; a < 17; a++) {
+    for (uint8_t b = 1; b < 17; b++) { // skip division by zero
+      HF r = hf_div(hf_new(a), hf_new(b));
+      uint8_t inv_b = 0;
+      for (uint8_t x = 1; x < 17; x++) {
+        if ((b * x) % 17 == 1) {
+          inv_b = x;
+          break;
+        }
+      }
+      uint8_t expected = (a * inv_b) % 17;
+      assert(r.value == expected);
+    }
+  }
+}
+
 int main() {
   test_base();
   test_vector();
+  test_hf_add();
+  test_hf_sub();
+  test_hf_mul();
+  test_hf_neg();
+  test_hf_pow();
+  test_hf_inv();
+  test_hf_div();
   return 0;
 }
