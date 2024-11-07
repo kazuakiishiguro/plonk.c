@@ -31,6 +31,9 @@ void test_plonk_init() {
   HF vals[] = {f17(13), f17(13), f17(13), f17(13), f17(13), f17(16), f17(4), f17(1), f17(13), f17(4), f17(13), f17(4), f17(13), f17(1), f17(4), f17(16)};
   MATRIX expected = matrix_new(vals, h_len, h_len);
   assert(matrix_equal(&plonk.h_pows_inv, &expected));
+
+  matrix_free(&expected);
+  plonk_free(&plonk);
 }
 
 int main() {

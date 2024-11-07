@@ -89,4 +89,25 @@ PLONK plonk_new(SRS srs, size_t n) {
   return plonk;
 }
 
+void plonk_free(PLONK *plonk) {
+  srs_free(&plonk->srs);
+  matrix_free(&plonk->h_pows_inv);
+  poly_free(&plonk->z_h_x);
+
+  if (plonk->h) {
+    free(plonk->h);
+    plonk->h = NULL;
+  }
+
+  if (plonk->k1_h) {
+    free(plonk->k1_h);
+    plonk->k1_h = NULL;
+  }
+
+  if (plonk->k2_h) {
+    free(plonk->k2_h);
+    plonk->k2_h = NULL;
+  }
+}
+
 #endif // PLONK_H
