@@ -110,4 +110,39 @@ void plonk_free(PLONK *plonk) {
   }
 }
 
+POLY interpolate_at_h(const PLONK *plonk, const HF *values, size_t len) {
+  // ensure len == plonk->h_len
+  if (len != plonk->h_len) {
+    fprintf(stderr, "Length mismatch in interpolate_at_h: len= %zu, plonk->h_len = %zu\n", len, plonk->h_len);
+    exit(EXIT_FAILURE);
+  }
+
+  MATRIX vec = matrix_zero(len, 1);
+  for (size_t i = 0; i < len; i++) {
+    matrix_set(&vec, i, 0, values[i]);
+  }
+
+  // multiply h_pows_inv * vec
+  MATRIX res = matrix_mul(&plonk->h_pows_inv, &vec);
+
+  // convert result matrix to polynomial
+  HF *coeffs = (HF *)malloc(res.m * sizeof(HF));
+  if (!coeffs) {
+    fprintf(stderr, "Memory allocation failed for coeffs\n");
+    exit(EXIT_FAILURE);
+  }
+  for (size_t i = 0; i < res.m; i++) {
+    coeffs[i] = matrix_get(&res, i, 0);
+  }
+
+  POLY result = poly_new(coeffs, res.m);
+
+  // clean up
+  matrix_free(&vec);
+  matrix_free(&res);
+  free(coeffs);
+
+  return result;
+}
+
 #endif // PLONK_H
