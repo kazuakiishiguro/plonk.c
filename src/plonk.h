@@ -2,6 +2,7 @@
 #define PLONK_H
 
 #include <stdlib.h>
+#include "constraints.h"
 #include "matrix.h"
 #include "poly.h"
 #include "srs.h"
@@ -107,6 +108,26 @@ void plonk_free(PLONK *plonk) {
   if (plonk->k2_h) {
     free(plonk->k2_h);
     plonk->k2_h = NULL;
+  }
+}
+
+void copy_constraints_to_roots(const PLONK *plonk, const COPY_OF *copy_of, size_t len, HF *sigma) {
+  for (size_t i = 0; i < len; i++) {
+    size_t idx = copy_of[i].index - 1;
+    switch (copy_of[i].type) {
+    case COPYOF_A:
+      sigma[i] = plonk->h[idx];
+      break;
+    case COPYOF_B:
+      sigma[i] = plonk->k1_h[idx];
+      break;
+    case COPYOF_C:
+      sigma[i] = plonk->k2_h[idx];
+      break;
+    default:
+      fprintf(stderr, "Invalid copy_of type\n");
+      exit(EXIT_FAILURE);
+    }
   }
 }
 
