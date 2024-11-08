@@ -56,6 +56,12 @@ bool poly_is_zero(const POLY *polynomial) {
   return true;
 }
 
+POLY poly_add_hf(POLY *a, const HF b) {
+  a->coeffs[0] = hf_add(a->coeffs[0], b);
+  poly_normalize(a);
+  return *a;
+}
+
 POLY poly_add(const POLY *a, const POLY *b) {
   size_t max_len = (a->len > b->len) ? a->len : b->len;
   HF *coeffs = (HF *)malloc(max_len * sizeof(HF));
