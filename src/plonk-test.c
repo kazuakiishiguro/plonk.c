@@ -55,6 +55,8 @@ void test_interpolate_at_h() {
   HF coeffs[] = {f17(6), f17(1), f17(4), f17(9)};
   POLY expected = poly_new(coeffs, 4);
   ASSERT_POLY(result, expected);
+
+  plonk_free(&plonk);
 }
 
 void test_copy_constraints() {
@@ -106,10 +108,23 @@ void test_copy_constraints() {
   assert(hf_equal(*sigma_c_a, *expected_c_a));
   assert(hf_equal(*sigma_c_b, *expected_c_b));
   assert(hf_equal(*sigma_c_c, *expected_c_c));
+
+  free(constraints.c_a);
+  free(constraints.c_b);
+  free(constraints.c_c);
+  free(sigma_c_a);
+  free(sigma_c_b);
+  free(sigma_c_c);
+  plonk_free(&plonk);
+}
+
+void test_plonk_prove() {
+
 }
 
 int main() {
   test_plonk_init();
   test_interpolate_at_h();
   test_copy_constraints();
+  test_plonk_prove();
 }
