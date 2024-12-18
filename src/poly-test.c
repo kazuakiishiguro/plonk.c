@@ -86,6 +86,18 @@ void test_poly_sub() {
   poly_free(&expected);
 }
 
+void test_poly_add_sub_hf() {
+    POLY p = poly_zero();
+    p = poly_add_hf(&p, f17(3));
+    assert(p.len == 1 && hf_equal(p.coeffs[0], f17(3)));
+
+    // Subtract the same scalar
+    p = poly_add_hf(&p, hf_neg(f17(3)));
+    assert(poly_is_zero(&p));
+
+    poly_free(&p);
+}
+
 void test_poly_mul() {
   HF ca[] = {f17(5), f17(0), f17(10), f17(6)};
   POLY a = poly_new(ca, 4);
@@ -193,6 +205,7 @@ void test_poly_lagrange() {
 int main() {
   test_poly_add();
   test_poly_sub();
+  test_poly_add_sub_hf();
   test_poly_mul();
   test_poly_negate();
   test_poly_scale();

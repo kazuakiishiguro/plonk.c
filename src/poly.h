@@ -12,40 +12,47 @@ typedef struct {
   size_t len;
 } POLY;
 
-void poly_normalize(POLY *polynomial) {
-  while (polynomial->len > 1 && hf_equal(polynomial->coeffs[polynomial->len - 1], hf_new(0))) {
-    polynomial->len--;
+/**
+ * Create a polynomial and automatically remove trailing zeros.
+ * coeffs: Input array of coefficients.
+ * len: Length of the input array.
+ */
+static POLY poly_new_internal(const HF *coeffs, size_t len) {
+  // Trim trailing zeros
+  while (len > 1 && hf_equal(coeffs[len - 1], hf_zero())) {
+    len--;
   }
-  polynomial->coeffs = realloc(polynomial->coeffs, polynomial->len * sizeof(HF));
-};
 
-POLY poly_new(HF *coeffs, size_t len) {
   POLY result;
   result.len = len;
   result.coeffs = (HF *)malloc(len * sizeof(HF));
   if (!result.coeffs) {
-    fprintf(stderr, "Memory allocation failed in poly_new\n");
+    fprintf(stderr, "Memory allocation failed in poly_new_internal\n");
     exit(EXIT_FAILURE);
   }
 
   for (size_t i = 0; i < len; i++) {
-       result.coeffs[i] = coeffs[i];
+    result.coeffs[i] = coeffs[i];
   }
-  poly_normalize(&result);
   return result;
 }
 
-POLY poly_zero() {
-  HF zero = hf_new(0);
+// Public constructor-like function
+static inline POLY poly_new(const HF *coeffs, size_t len) {
+  return poly_new_internal(coeffs, len);
+}
+
+static inline POLY poly_zero() {
+  HF zero = hf_zero();
   return poly_new(&zero, 1);
 }
 
-POLY poly_one() {
-  HF one = hf_new(1);
+static inline POLY poly_one() {
+  HF one = hf_one();
   return poly_new(&one, 1);
 }
 
-bool poly_is_zero(const POLY *polynomial) {
+static inline bool poly_is_zero(const POLY *polynomial) {
   if (polynomial->len == 0) {
     return true;
   }
@@ -56,9 +63,9 @@ bool poly_is_zero(const POLY *polynomial) {
   return true;
 }
 
+// Add a scalar HF value to the polynomial (to the constant term)
 POLY poly_add_hf(POLY *a, const HF b) {
   a->coeffs[0] = hf_add(a->coeffs[0], b);
-  poly_normalize(a);
   return *a;
 }
 
@@ -114,179 +121,195 @@ POLY poly_mul(const POLY *a, const POLY *b) {
   return reuslt;
 }
 
-void poly_divide(const POLY *numerator, const POLY *denominator, POLY *quotient, POLY *remainder) {
-  // ensure the denominator is not zero
-  if (denominator->len == 0 || hf_equal(denominator->coeffs[denominator->len - 1], hf_new(0))) {
+void poly_divide(const POLY *num, const POLY *den, POLY *quot, POLY *rem) {
+  if (poly_is_zero(den)) {
     fprintf(stderr, "Division by zero polynomial in poly_divide\n");
     exit(EXIT_FAILURE);
   }
 
-  // initialize quotient and remainder
-  size_t num_len = numerator->len;
-  size_t den_len = denominator->len;
+  size_t num_len = num->len;
+  size_t den_len = den->len;
+
   HF *quot_coeffs = (HF *)calloc(num_len, sizeof(HF));
-  HF *rem_coeffs = (HF *)calloc(num_len, sizeof(HF));
+  HF *rem_coeffs  = (HF *)calloc(num_len, sizeof(HF));
   if (!quot_coeffs || !rem_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_divide\n");
     exit(EXIT_FAILURE);
   }
 
-  // copy numerator coefficients to remainder
+  // Copy numerator -> remainder
   for (size_t i = 0; i < num_len; i++) {
-    rem_coeffs[i] = numerator->coeffs[i];
+    rem_coeffs[i] = num->coeffs[i];
   }
 
-  HF den_lead_inv = hf_inv(denominator->coeffs[den_len - 1]);
+  HF den_lead_inv = hf_inv(den->coeffs[den_len - 1]);
 
-  for (ssize_t i = num_len - 1; i >= (ssize_t)(den_len - 1); i--) {
-    // compute the coefficient for the current term of the quotient
+  for (ssize_t i = (ssize_t)num_len - 1; i >= (ssize_t)(den_len - 1); i--) {
     HF coeff = hf_mul(rem_coeffs[i], den_lead_inv);
     quot_coeffs[i - (den_len - 1)] = coeff;
 
-    // subtract the scaled denominator from the remainder
     for (ssize_t j = 0; j < (ssize_t)den_len; j++) {
-      rem_coeffs[i - j] = hf_sub(rem_coeffs[i - j], hf_mul(coeff, denominator->coeffs[den_len - 1 - j]));
+      rem_coeffs[i - j] = hf_sub(rem_coeffs[i - j], hf_mul(coeff, den->coeffs[den_len - 1 - j]));
     }
   }
 
-  // remove leading zeros from quotient and remainder
-  size_t quot_len = num_len - den_len + 1;
-  while (quot_len > 0 && hf_equal(quot_coeffs[quot_len - 1], hf_new(0))) {
+  // Trim quotient
+  size_t quot_len = num_len >= den_len ? num_len - den_len + 1 : 1;
+  while (quot_len > 1 && hf_equal(quot_coeffs[quot_len - 1], hf_zero())) {
     quot_len--;
   }
 
+  // Trim remainder
   size_t rem_len = den_len - 1;
-  while (rem_len > 0 && hf_equal(rem_coeffs[rem_len - 1], hf_new(0))) {
+  if (rem_len > num_len) {
+    // If denominator is longer than numerator, remainder is actually just numerator.
+    rem_len = num_len;
+  }
+  while (rem_len > 1 && hf_equal(rem_coeffs[rem_len - 1], hf_zero())) {
     rem_len--;
   }
 
-  // set the quotient and remainder polynomials
-  *quotient = poly_new(quot_coeffs, quot_len);
-  *remainder = poly_new(rem_coeffs, rem_len);
+  *quot = poly_new(quot_coeffs, quot_len);
+  *rem  = poly_new(rem_coeffs,  rem_len);
 
-  // clean up temporary arrays
   free(quot_coeffs);
   free(rem_coeffs);
 }
 
+POLY poly_scale(const POLY *p, HF scalar) {
+  if (hf_equal(scalar, hf_zero())) {
+    return poly_zero();
+  }
 
-POLY poly_scale(const POLY *polynomial, HF scalar) {
-  HF *coeffs = (HF *)calloc(polynomial->len, sizeof(HF));
+  HF *coeffs = (HF *)malloc(p->len * sizeof(HF));
   if (!coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_scale\n");
     exit(EXIT_FAILURE);
   }
-  for (size_t i = 0; i < polynomial->len; i++) {
-    coeffs[i] = hf_mul(polynomial->coeffs[i], scalar);
+
+  for (size_t i = 0; i < p->len; i++) {
+    coeffs[i] = hf_mul(p->coeffs[i], scalar);
   }
-  POLY result = poly_new(coeffs, polynomial->len);
+
+  POLY result = poly_new(coeffs, p->len);
   free(coeffs);
   return result;
 }
 
-POLY poly_shift(const POLY *polynomial, size_t shift) {
-  // Multiply polynomial by x^shift
-  size_t new_len = polynomial->len + shift;
+POLY poly_shift(const POLY *p, size_t shift) {
+  if (poly_is_zero(p)) return poly_zero();
+
+  size_t new_len = p->len + shift;
   HF *new_coeffs = (HF *)calloc(new_len, sizeof(HF));
   if (!new_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_shift\n");
     exit(EXIT_FAILURE);
   }
-  for (size_t i = 0; i < polynomial->len; i++) {
-    new_coeffs[i + shift] = polynomial->coeffs[i];
+
+  for (size_t i = 0; i < p->len; i++) {
+    new_coeffs[i + shift] = p->coeffs[i];
   }
+
   POLY result = poly_new(new_coeffs, new_len);
   free(new_coeffs);
   return result;
 }
 
-POLY poly_slice(const POLY *polynomial, size_t start, size_t end) {
-  if (start >= end || end > polynomial->len) {
+POLY poly_slice(const POLY *p, size_t start, size_t end) {
+  if (start >= end || end > p->len) {
     fprintf(stderr, "Invalid slice indices in poly_slice\n");
     exit(EXIT_FAILURE);
   }
+
   size_t new_len = end - start;
   HF *new_coeffs = (HF *)malloc(new_len * sizeof(HF));
   if (!new_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_slice\n");
     exit(EXIT_FAILURE);
   }
+
   for (size_t i = 0; i < new_len; i++) {
-    new_coeffs[i] = polynomial->coeffs[start + i];
+    new_coeffs[i] = p->coeffs[start + i];
   }
+
   POLY result = poly_new(new_coeffs, new_len);
   free(new_coeffs);
   return result;
 }
 
-POLY poly_negate(const POLY *polynomial) {
-  HF *neg_coeffs = (HF *)malloc(polynomial->len * sizeof(HF));
+POLY poly_negate(const POLY *p) {
+  HF *neg_coeffs = (HF *)malloc(p->len * sizeof(HF));
   if (!neg_coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_negate\n");
     exit(EXIT_FAILURE);
   }
-  for (size_t i = 0; i < polynomial->len; i++) {
-    neg_coeffs[i] = hf_neg(polynomial->coeffs[i]);
+
+  for (size_t i = 0; i < p->len; i++) {
+    neg_coeffs[i] = hf_neg(p->coeffs[i]);
   }
-  POLY result = poly_new(neg_coeffs, polynomial->len);
+
+  POLY result = poly_new(neg_coeffs, p->len);
   free(neg_coeffs);
   return result;
 }
 
-void poly_free(POLY *polynomial) {
-  if (polynomial->coeffs) {
-    free(polynomial->coeffs);
-    polynomial->coeffs = NULL;
+static inline void poly_free(POLY *p) {
+  if (p->coeffs) {
+    free(p->coeffs);
+    p->coeffs = NULL;
   }
-  polynomial->len = 0;
+  p->len = 0;
 }
 
-HF poly_eval(const POLY *polynomial, HF x) {
-  HF x_pow = hf_one();
+// Evaluate polynomial using Horner's method: O(n) with minimal overhead
+HF poly_eval(const POLY *p, HF x) {
   HF y = hf_zero();
-  for (size_t i = 0; i < polynomial->len; i++) {
-    HF term = hf_mul(x_pow, polynomial->coeffs[i]);
-    y = hf_add(y, term);
-    x_pow = hf_mul(x_pow, x);
+  for (ssize_t i = (ssize_t)p->len - 1; i >= 0; i--) {
+    y = hf_mul(y, x);
+    y = hf_add(y, p->coeffs[i]);
   }
   return y;
 }
 
 POLY poly_z(const HF *points, size_t len) {
+  // Construct Π (x - points[i])
   POLY acc = poly_one();
   for (size_t i = 0; i < len; i++) {
-    HF neg_x = hf_neg(points[i]);
-    HF coeffs[] = {neg_x, hf_new(1)};
+    HF coeffs[] = { hf_neg(points[i]), hf_one() };
     POLY term = poly_new(coeffs, 2);
     POLY temp = poly_mul(&acc, &term);
     poly_free(&acc);
+    poly_free(&term);
     acc = temp;
   }
   return acc;
 }
 
 POLY poly_lagrange(const HF *x_points, const HF *y_points, size_t len) {
+  // Lagrange interpolation:
+  // L(x) = Σ [y_j * Π((x - x_i)/(x_j - x_i)) for i != j]
   POLY l = poly_zero();
   for (size_t j = 0; j < len; j++) {
     POLY l_j = poly_one();
     for (size_t i = 0; i < len; i++) {
       if (i != j) {
         HF denom = hf_sub(x_points[j], x_points[i]);
-	HF denom_inv = hf_inv(denom);
-	if (denom_inv.value == 0) {
-	  fprintf(stderr, "Error: Lagrange polynomial x points must be unique\n");
-	  exit(EXIT_FAILURE);
-	}
-	HF c = denom_inv;
-	HF neg_cxi = hf_neg(hf_mul(c, x_points[i]));
-	HF coeffs[] = {neg_cxi, c};
-	POLY term = poly_new(coeffs, 2);
-	POLY temp = poly_mul(&l_j, &term);
-	poly_free(&l_j);
-	l_j = temp;
-	poly_free(&term);
+        HF denom_inv = hf_inv(denom);
+        if (hf_equal(denom_inv, hf_zero())) {
+          fprintf(stderr, "Error: Lagrange polynomial x points must be unique\n");
+          exit(EXIT_FAILURE);
+        }
+
+        HF neg_cxi = hf_neg(hf_mul(denom_inv, x_points[i]));
+        HF coeffs[] = {neg_cxi, denom_inv};
+        POLY term = poly_new(coeffs, 2);
+        POLY temp = poly_mul(&l_j, &term);
+        poly_free(&l_j);
+        poly_free(&term);
+        l_j = temp;
       }
     }
+
     POLY scaled_l_j = poly_scale(&l_j, y_points[j]);
     POLY temp_l = poly_add(&l, &scaled_l_j);
     poly_free(&l);
