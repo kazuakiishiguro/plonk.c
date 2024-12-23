@@ -274,6 +274,10 @@ PROOF plonk_prove(
   POLY s_sigma_2 = interpolate_at_h(plonk, sigma_2, plonk->h_len);
   POLY s_sigma_3 = interpolate_at_h(plonk, sigma_3, plonk->h_len);
 
+  free(sigma_1);
+  free(sigma_2);
+  free(sigma_3);
+
   // step 4: round 1 - eval a(x), b(x), c(x) at s
   /* ------------------------------------------------------- */
   HF b1 = rand[0], b2 = rand[1], b3 = rand[2], b4 = rand[3], b5 = rand[4], b6 = rand[5];
@@ -301,6 +305,9 @@ PROOF plonk_prove(
   G1 c_s = srs_eval_at_s(&plonk->srs, &c_x);
 
   // cleaning up
+  poly_free(&f_a_x);
+  poly_free(&f_b_x);
+  poly_free(&f_c_x);
   poly_free(&a_blinding_poly);
   poly_free(&a_x_blinded);
   poly_free(&b_blinding_poly);
@@ -573,6 +580,12 @@ PROOF plonk_prove(
   // compute linearization evaluation
   HF r_z = poly_eval(&r_x, z);
 
+  poly_free(&q_o_x);
+  poly_free(&q_m_x);
+  poly_free(&q_l_x);
+  poly_free(&q_r_x);
+  poly_free(&q_c_x);
+
   // round 5
   // ---------------------------------------------------------------------------
   // we create two large polynomials that combine all the polynomials we've been
@@ -644,6 +657,9 @@ PROOF plonk_prove(
   poly_free(&z_x);
   poly_free(&l_1_x);
   poly_free(&z_omega_x);
+  poly_free(&s_sigma_1);
+  poly_free(&s_sigma_2);
+  poly_free(&s_sigma_3);
   poly_free(&r_1_x);
   poly_free(&r_2_x);
   poly_free(&r_3_x);
