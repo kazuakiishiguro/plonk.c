@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "constraints.h"
 #include "matrix.h"
+#include "pairing.h"
 #include "poly.h"
 #include "srs.h"
 #include "hf.h"
@@ -195,28 +196,28 @@ POLY interpolate_at_h(const PLONK *plonk, const HF *values, size_t len) {
 }
 
 void poly_print(const POLY *p) {
-     bool first = true;
-     for (size_t i = 0; i < p->len; i++) {
-	  HF coeff = p->coeffs[i];
-	  if (!hf_equal(coeff, hf_new(0))) {
-	       if (!first)
-		    printf("+");
-	       if (i == 0) {
-		    printf("%u", coeff.value);
-	       } else if (i == 1){
-		    printf("%ux", coeff.value);
-	       } else {
-		    if (coeff.value != 1)
-			 printf("%u", coeff.value);
-		    printf("x^%zu", i);
-	       }
-	       first = false;
-	  }
-     }
-     if (first) {
-	  printf("0");
-     }
-     printf("\n");
+  bool first = true;
+  for (size_t i = 0; i < p->len; i++) {
+    HF coeff = p->coeffs[i];
+    if (!hf_equal(coeff, hf_new(0))) {
+      if (!first)
+        printf("+");
+      if (i == 0) {
+        printf("%u", coeff.value);
+      } else if (i == 1){
+        printf("%ux", coeff.value);
+      } else {
+        if (coeff.value != 1)
+          printf("%u", coeff.value);
+        printf("x^%zu", i);
+      }
+      first = false;
+    }
+  }
+  if (first) {
+    printf("0");
+  }
+  printf("\n");
 }
 
 
@@ -671,5 +672,354 @@ PROOF plonk_prove(
   return proof;
 }
 
+bool plonk_verify(
+    PLONK *plonk,
+    CONSTRAINTS *constraints,
+    PROOF *proof,
+    CHALLENGE *challenge,
+    HF rand[1]
+) {
+  bool success = false;
+  size_t n = constraints->num_constraints;
+
+  // ----------------------------------------------------
+  // 0. Setup pointers/objects we'll allocate & need to free
+  // ----------------------------------------------------
+  HF *sigma_1 = NULL;
+  HF *sigma_2 = NULL;
+  HF *sigma_3 = NULL;
+
+  // We'll store the polynomials we create in step 8 in these variables
+  // so we can free them in case of an error.
+  POLY q_m_x = poly_zero();
+  POLY q_l_x = poly_zero();
+  POLY q_r_x = poly_zero();
+  POLY q_o_x = poly_zero();
+  POLY q_c_x = poly_zero();
+  POLY s_sigma_1_x = poly_zero();
+  POLY s_sigma_2_x = poly_zero();
+  POLY s_sigma_3_x = poly_zero();
+
+  // We'll also create an extra "cleanup" label at the end
+  // to free memory in all cases.
+
+  // ----------------------------------------------------
+  // 1. Unpack from proof and challenge
+  // ---------------------------------------------------
+  G1 a_s = proof->a_s;
+  G1 b_s = proof->b_s;
+  G1 c_s = proof->c_s;
+  G1 z_s = proof->z_s;
+  G1 t_lo_s = proof->t_lo_s;
+  G1 t_mid_s = proof->t_mid_s;
+  G1 t_hi_s = proof->t_hi_s;
+  G1 w_z_s = proof->w_z_s;
+  G1 w_z_omega_s = proof->w_z_omega_s;
+
+  HF a_z = proof->a_z;
+  HF b_z = proof->b_z;
+  HF c_z = proof->c_z;
+  HF s_sigma_1_z = proof->s_sigma_1_z;
+  HF s_sigma_2_z = proof->s_sigma_2_z;
+  HF r_z = proof->r_z;
+  HF z_omega_z = proof->z_omega_z;
+
+  // unpack challenge
+  HF alpha = challenge->alpha;
+  HF beta = challenge->beta;
+  HF gamma = challenge->gamma;
+  HF z = challenge->z;
+  HF v = challenge->v;
+
+  // constants
+  HF omega = hf_new(OMEGA_VALUE);
+  HF k1 = hf_new(K1_VALUE);
+  HF k2 = hf_new(K2_VALUE);
+
+  // ----------------------------------------------------
+  // 2. Validate proof points in G1
+  // ----------------------------------------------------
+  if (!g1_is_on_curve(&a_s) ||
+      !g1_is_on_curve(&b_s) ||
+      !g1_is_on_curve(&c_s) ||
+      !g1_is_on_curve(&z_s) ||
+      !g1_is_on_curve(&t_lo_s) ||
+      !g1_is_on_curve(&t_mid_s) ||
+      !g1_is_on_curve(&t_hi_s) ||
+      !g1_is_on_curve(&w_z_s) ||
+      !g1_is_on_curve(&w_z_omega_s)) {
+    // Return false immediately, no memory has been allocated yet, so no leak
+    return false;
+  }
+
+  // ----------------------------------------------------
+  // 3. Validate proof fields in HF
+  // ----------------------------------------------------
+  if (!hf_in_field(a_z) ||
+      !hf_in_field(b_z) ||
+      !hf_in_field(c_z) ||
+      !hf_in_field(s_sigma_1_z) ||
+      !hf_in_field(s_sigma_2_z) ||
+      !hf_in_field(r_z) ||
+      !hf_in_field(z_omega_z)) {
+    // Also safe to return false now
+    return false;
+  }
+
+  // ----------------------------------------------------
+  // 4. Evaluate z_h at z
+  // ----------------------------------------------------
+  HF z_h_z = poly_eval(&plonk->z_h_x, z);
+
+  // ----------------------------------------------------
+  // 5. Evaluate Lagrange polynomial L1 at z
+  // ----------------------------------------------------
+  HF *lagrange_vector = (HF *)calloc(plonk->h_len, sizeof(HF));
+  if (!lagrange_vector) {
+    fprintf(stderr, "Memory allocation failed in plonk_verify\n");
+    goto cleanup;  // jump to free resources
+  }
+
+  lagrange_vector[0] = hf_new(1); // L1(omega^0) = 1
+  POLY l_1_x = interpolate_at_h(plonk, lagrange_vector, plonk->h_len);
+
+  // we can free lagrange_vector right away
+  free(lagrange_vector);
+
+  HF l_1_z = poly_eval(&l_1_x, z);
+  poly_free(&l_1_x);
+
+  // ----------------------------------------------------
+  // 6. No public inputs => p_i_z = 0
+  // ----------------------------------------------------
+  HF p_i_z = hf_zero();
+
+  // ----------------------------------------------------
+  // 7. Compute quotient polynomial evaluation t_z
+  // ----------------------------------------------------
+  HF a_z_beta_s_sigma_1_z_gamma = hf_add(hf_add(hf_mul(beta, s_sigma_1_z), gamma), a_z);
+  HF b_z_beta_s_sigma_2_z_gamma = hf_add(hf_add(hf_mul(beta, s_sigma_2_z), gamma), b_z);
+  HF c_z_gamma = hf_add(c_z, gamma);
+  HF l_1_z_alpha_2 = hf_mul(l_1_z, hf_pow(alpha, 2));
+
+  // numerator = (r_z + p_i_z) - ( [a_z+beta*s_sigma_1_z+gamma]*[b_z+beta*s_sigma_2_z+gamma]*[c_z+gamma]*z_omega_z + alpha^2*l_1_z )
+  HF numerator = hf_sub(hf_add(r_z, p_i_z),
+                        hf_add(
+                            hf_mul(
+                                hf_mul(
+                                    hf_mul(
+                                        a_z_beta_s_sigma_1_z_gamma,
+                                        b_z_beta_s_sigma_2_z_gamma),
+                                    c_z_gamma),
+                                z_omega_z),
+                            l_1_z_alpha_2));
+
+  // t_z = numerator / z_h_z
+  HF t_z = hf_div(numerator, z_h_z);
+
+  // ----------------------------------------------------
+  // 8. Interpolate constraint polynomials & sigma polynomials
+  //    Then evaluate them at s
+  // ----------------------------------------------------
+  // Allocate sigma arrays
+  sigma_1 = (HF *)malloc(n * sizeof(HF));
+  sigma_2 = (HF *)malloc(n * sizeof(HF));
+  sigma_3 = (HF *)malloc(n * sizeof(HF));
+  if (!sigma_1 || !sigma_2 || !sigma_3) {
+    fprintf(stderr, "Memory allocation failed in plonk_verify\n");
+    goto cleanup;
+  }
+
+  copy_constraints_to_roots(plonk, constraints->c_a, n, sigma_1);
+  copy_constraints_to_roots(plonk, constraints->c_b, n, sigma_2);
+  copy_constraints_to_roots(plonk, constraints->c_c, n, sigma_3);
+
+  // Now build polynomials for q_m, q_l, q_r, q_o, q_c, s_sigma_1, s_sigma_2, s_sigma_3
+  q_m_x = interpolate_at_h(plonk, constraints->q_m, n);
+  q_l_x = interpolate_at_h(plonk, constraints->q_l, n);
+  q_r_x = interpolate_at_h(plonk, constraints->q_r, n);
+  q_o_x = interpolate_at_h(plonk, constraints->q_o, n);
+  q_c_x = interpolate_at_h(plonk, constraints->q_c, n);
+  s_sigma_1_x = interpolate_at_h(plonk, sigma_1, n);
+  s_sigma_2_x = interpolate_at_h(plonk, sigma_2, n);
+  s_sigma_3_x = interpolate_at_h(plonk, sigma_3, n);
+
+  // Evaluate them at s
+  G1 q_m_s = srs_eval_at_s(&plonk->srs, &q_m_x);
+  G1 q_l_s = srs_eval_at_s(&plonk->srs, &q_l_x);
+  G1 q_r_s = srs_eval_at_s(&plonk->srs, &q_r_x);
+  G1 q_o_s = srs_eval_at_s(&plonk->srs, &q_o_x);
+  G1 q_c_s = srs_eval_at_s(&plonk->srs, &q_c_x);
+  G1 sigma_1_s = srs_eval_at_s(&plonk->srs, &s_sigma_1_x);
+  G1 sigma_2_s = srs_eval_at_s(&plonk->srs, &s_sigma_2_x);
+  G1 sigma_3_s = srs_eval_at_s(&plonk->srs, &s_sigma_3_x);
+
+  // No further usage for sigma_1/2/3 arrays
+  free(sigma_1);
+  free(sigma_2);
+  free(sigma_3);
+
+  // ----------------------------------------------------
+  // 9. Build partial commitments (d_1_s, d_2_s, d_3_s, etc.)
+  // ----------------------------------------------------
+  HF u = rand[0];
+
+  // d_1_s = q_m_s*(a_z*b_z*v) + q_l_s*(a_z*v) + q_r_s*(b_z*v) + q_o_s*(c_z*v) + q_c_s*(v)
+  // We'll do it step by step for clarity
+  HF a_z_b_z_v = hf_mul(hf_mul(a_z, b_z), v);
+  HF a_z_v = hf_mul(a_z, v);
+  HF b_z_v = hf_mul(b_z, v);
+  HF c_z_v = hf_mul(c_z, v);
+
+  G1 tmp_m = g1_mul(&q_m_s, a_z_b_z_v.value);
+  G1 tmp_l = g1_mul(&q_l_s, a_z_v.value);
+  G1 tmp_r = g1_mul(&q_r_s, b_z_v.value);
+  G1 tmp_o = g1_mul(&q_o_s, c_z_v.value);
+  G1 tmp_c = g1_mul(&q_c_s, v.value);
+
+  // sum them
+  G1 d_1_s = g1_add(&tmp_m, &tmp_l);
+  d_1_s = g1_add(&d_1_s, &tmp_r);
+  d_1_s = g1_add(&d_1_s, &tmp_o);
+  d_1_s = g1_add(&d_1_s, &tmp_c);
+
+  // d_2_s = z_s * ( [a_z+beta*z+gamma]*[b_z+beta*k1*z+gamma]*[c_z+beta*k2*z+gamma]*alpha*v + l_1_z*alpha^2*v + u )
+  HF term_d2_inner = hf_mul(
+      hf_mul(
+          hf_mul(
+              hf_add(a_z, hf_add(hf_mul(beta, z), gamma)),
+              hf_add(b_z, hf_add(hf_mul(beta, hf_mul(k1, z)), gamma))
+                 ),
+          hf_add(c_z, hf_add(hf_mul(beta, hf_mul(k2, z)), gamma))
+             ),
+      hf_mul(alpha, v)
+                            );
+  HF term_d2 = hf_add(term_d2_inner, hf_mul(l_1_z, hf_mul(hf_pow(alpha, 2), v)));
+  term_d2 = hf_add(term_d2, u);
+  G1 d_2_s = g1_mul(&z_s, term_d2.value);
+
+  // d_3_s = sigma_3_s * ( [a_z + beta*s_sigma_1_z + gamma]*[b_z + beta*s_sigma_2_z + gamma]*alpha*v*beta*z_omega_z )
+  HF term_d3_inner = hf_mul(
+      hf_mul(
+          hf_add(a_z, hf_add(hf_mul(beta, s_sigma_1_z), gamma)),
+          hf_add(b_z, hf_add(hf_mul(beta, s_sigma_2_z), gamma))
+             ),
+      hf_mul(alpha, v)
+                            );
+  HF term_d3 = hf_mul(term_d3_inner, hf_mul(beta, z_omega_z));
+  G1 d_3_s = g1_mul(&sigma_3_s, term_d3.value);
+
+  // d_s = d_1_s + d_2_s - d_3_s
+  G1 d_s = g1_add(&d_1_s, &d_2_s);
+  G1 d_3_s_neg = g1_neg(&d_3_s);
+  d_s = g1_add(&d_s, &d_3_s_neg);
+
+  // ----------------------------------------------------
+  // 10. Compute f_s
+  // ----------------------------------------------------
+  // We do scaled versions of t_lo_s, t_mid_s, t_hi_s
+  G1 t_mid_s_scaled = g1_mul(&t_mid_s, hf_pow(z, n + 2).value);
+  G1 t_hi_s_scaled = g1_mul(&t_hi_s, hf_pow(z, 2*n + 4).value);
+
+  G1 t_lo_mid_s_scaled = g1_add(&t_lo_s, &t_mid_s_scaled);
+  G1 t_hi_s_scaled_d_s = g1_add(&t_hi_s_scaled, &d_s);
+
+  // a_s^(v^2), b_s^(v^3), c_s^(v^4), sigma1_s^(v^5), sigma2_s^(v^6)
+  G1 a_s_pow_v2 = g1_mul(&a_s, hf_pow(v, 2).value);
+  G1 b_s_pow_v3 = g1_mul(&b_s, hf_pow(v, 3).value);
+  G1 c_s_pow_v4 = g1_mul(&c_s, hf_pow(v, 4).value);
+  G1 sigma_1_s_pow_v5 = g1_mul(&sigma_1_s, hf_pow(v, 5).value);
+  G1 sigma_2_s_pow_v6 = g1_mul(&sigma_2_s, hf_pow(v, 6).value);
+
+  // combine them
+  G1 temp_sum = g1_add(&a_s_pow_v2, &b_s_pow_v3);
+  temp_sum = g1_add(&temp_sum, &c_s_pow_v4);
+  temp_sum = g1_add(&temp_sum, &sigma_1_s_pow_v5);
+  temp_sum = g1_add(&temp_sum, &sigma_2_s_pow_v6);
+
+  // f_s = (t_lo_s + t_mid_s*z^(n+2)) + (t_hi_s*z^(2n+4) + d_s) + temp_sum
+  G1 f_s = g1_add(&t_lo_mid_s_scaled, &t_hi_s_scaled_d_s);
+  f_s = g1_add(&f_s, &temp_sum);
+
+  // ----------------------------------------------------
+  // 11. Compute e_s
+  // ----------------------------------------------------
+  // Build a polynomial "1" to do srs_eval_at_s
+  HF one_val = hf_new(1);
+  POLY one_poly = poly_new(&one_val, 1);
+  G1 g1_s = srs_eval_at_s(&plonk->srs, &one_poly);
+  poly_free(&one_poly);
+
+  // e_scalar = t_z + v*r_z + v^2*a_z + v^3*b_z + v^4*c_z + v^5*s_sigma_1_z + v^6*s_sigma_2_z + u*z_omega_z
+  HF e_scalar = hf_add(
+      t_z,
+      hf_add(
+          hf_mul(v, r_z),
+          hf_add(
+              hf_mul(hf_pow(v, 2), a_z),
+              hf_add(
+                  hf_mul(hf_pow(v, 3), b_z),
+                  hf_add(
+                      hf_mul(hf_pow(v, 4), c_z),
+                      hf_add(
+                          hf_mul(hf_pow(v, 5), s_sigma_1_z),
+                          hf_add(
+                              hf_mul(hf_pow(v, 6), s_sigma_2_z),
+                              hf_mul(u, z_omega_z)
+                                 )
+                             )
+                         )
+                     )
+                 )
+             )
+                       );
+  G1 e_s = g1_mul(&g1_s, e_scalar.value);
+
+  // ----------------------------------------------------
+  // 12. Batch validate pairings
+  // ----------------------------------------------------
+  // e_1 = pairing( (w_z_s + w_z_omega_s*u),  g2_s )
+  // e_2 = pairing( (z*w_z_s + z*u*omega*w_z_omega_s) + (f_s - e_s), g2_1 )
+  G1 w_z_omega_s_u = g1_mul(&w_z_omega_s, u.value);
+  G1 e_1_q1 = g1_add(&w_z_s, &w_z_omega_s_u);
+  G2 e_1_q2 = plonk->srs.g2_s;
+
+  G1 temp1 = g1_mul(&w_z_s, z.value);
+  G1 temp2 = g1_mul(&w_z_omega_s, hf_mul(u, hf_mul(z, omega)).value);
+  G1 temp3 = g1_add(&temp1, &temp2);
+
+  G1 e_s_neg = g1_neg(&e_s);
+  G1 temp4 = g1_add(&f_s, &e_s_neg);
+  G1 e_2_q1 = g1_add(&temp3, &temp4);
+  G2 e_2_q2 = plonk->srs.g2_1;
+
+  // Now do the pairing checks
+  GTP e_1 = pairing(&e_1_q1, &e_1_q2);
+  GTP e_2 = pairing(&e_2_q1, &e_2_q2);
+
+  // If e_1 == e_2, success = true; else false
+  success = gtp_equal(&e_1, &e_2);
+
+cleanup:
+  // ----------------------------------------------------
+  // Free any resources still allocated
+  // ----------------------------------------------------
+  // sigma arrays (safe to free even if NULL)
+  if (sigma_1) { free(sigma_1); sigma_1 = NULL; }
+  if (sigma_2) { free(sigma_2); sigma_2 = NULL; }
+  if (sigma_3) { free(sigma_3); sigma_3 = NULL; }
+
+  // Polynomials
+  poly_free(&q_m_x);
+  poly_free(&q_l_x);
+  poly_free(&q_r_x);
+  poly_free(&q_o_x);
+  poly_free(&q_c_x);
+  poly_free(&s_sigma_1_x);
+  poly_free(&s_sigma_2_x);
+  poly_free(&s_sigma_3_x);
+
+  return success;
+}
 
 #endif // PLONK_H

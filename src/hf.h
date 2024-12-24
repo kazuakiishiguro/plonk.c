@@ -38,6 +38,10 @@ static inline HF hf_one() {
   return r;
 }
 
+static inline bool hf_in_field(HF a) {
+  return a.value < MODULO_HF;
+}
+
 static inline bool hf_equal(HF a, HF b) {
   return a.value == b.value;
 }

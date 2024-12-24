@@ -267,7 +267,11 @@ void test_plonk_prove_verify() {
   challenge.v = hf_new(12);
 
   // step 7: call plonk_prove to generate a proof
-  PROOF _ = plonk_prove(&plonk, &constraints, &assignments, &challenge, rand);
+  PROOF proof = plonk_prove(&plonk, &constraints, &assignments, &challenge, rand);
+
+  // step 8: verify the proof
+  HF rand_verifier[1] = { hf_new(4) };
+  assert(plonk_verify(&plonk, &constraints, &proof, &challenge, rand_verifier));
 
   free(constraints.q_m);
   free(constraints.q_l);
