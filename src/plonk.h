@@ -220,7 +220,6 @@ void poly_print(const POLY *p) {
   printf("\n");
 }
 
-
 PROOF plonk_prove(
     PLONK *plonk,
     CONSTRAINTS *constraints,
@@ -228,7 +227,15 @@ PROOF plonk_prove(
     CHALLENGE *challenge,
     HF rand[9]
 ) {
-  // step 1: check that the constraints satisfies the assignments
+  PROOF proof;
+  memset(&proof, 0, sizeof(PROOF)); // Initialize proof to zero
+  bool success = false;             // We'll set true once everything is OK
+
+  // -------------------------------
+  // 1. Basic checks
+  // -------------------------------
+  // If an assert fails, the program exits immediately.
+  // No memory is allocated yet, so no leak possible.
   assert(constraints_satisfy(constraints, assignments));
 
   // extract challenges
@@ -239,85 +246,150 @@ PROOF plonk_prove(
   HF v = challenge->v;
 
   // constants
+  size_t n = constraints->num_constraints;
   HF omega = hf_new(OMEGA_VALUE);
   HF k1 = hf_new(K1_VALUE);
   HF k2 = hf_new(K2_VALUE);
-  size_t n = constraints->num_constraints;
 
-  // step 2: create sigmas
-  HF *sigma_1 = (HF *)malloc(n * sizeof(HF));
-  HF *sigma_2 = (HF *)malloc(n * sizeof(HF));
-  HF *sigma_3 = (HF *)malloc(n * sizeof(HF));
+  // -------------------------------
+  // 2. Allocate sigmas
+  // -------------------------------
+  HF *sigma_1 = NULL;
+  HF *sigma_2 = NULL;
+  HF *sigma_3 = NULL;
+
+  sigma_1 = (HF *)malloc(n * sizeof(HF));
+  sigma_2 = (HF *)malloc(n * sizeof(HF));
+  sigma_3 = (HF *)malloc(n * sizeof(HF));
   if (!sigma_1 || !sigma_2 || !sigma_3) {
     fprintf(stderr, "Memory allocation failed in plonk_prove\n");
-    exit(EXIT_FAILURE);
+    goto cleanup;
   }
   copy_constraints_to_roots(plonk, constraints->c_a, n, sigma_1);
   copy_constraints_to_roots(plonk, constraints->c_b, n, sigma_2);
   copy_constraints_to_roots(plonk, constraints->c_c, n, sigma_3);
 
-  // step 3: create a set of polynomials, those polynomials evaluates at roots of unity for all the components of the plonk circuit
+  // -------------------------------
+  // 3. All polynomials we allocate
+  // -------------------------------
+  // We'll declare them as "poly_zero()" so we can safely poly_free() them
+  // in the cleanup block even if they were never overwritten.
   //
   //   (a,b,c)                  : assignments
   //   (o,m,l,r,c)              : gate constraints
   //   (sigma1, sigma2, sigma3) : copy constraints
-  //
-  // TODO: check if these elementes need to be padded
-  POLY f_a_x = interpolate_at_h(plonk, assignments->a, plonk->h_len);
-  POLY f_b_x = interpolate_at_h(plonk, assignments->b, plonk->h_len);
-  POLY f_c_x = interpolate_at_h(plonk, assignments->c, plonk->h_len);
-  POLY q_o_x = interpolate_at_h(plonk, constraints->q_o, plonk->h_len);
-  POLY q_m_x = interpolate_at_h(plonk, constraints->q_m, plonk->h_len);
-  POLY q_l_x = interpolate_at_h(plonk, constraints->q_l, plonk->h_len);
-  POLY q_r_x = interpolate_at_h(plonk, constraints->q_r, plonk->h_len);
-  POLY q_c_x = interpolate_at_h(plonk, constraints->q_c, plonk->h_len);
-  POLY s_sigma_1 = interpolate_at_h(plonk, sigma_1, plonk->h_len);
-  POLY s_sigma_2 = interpolate_at_h(plonk, sigma_2, plonk->h_len);
-  POLY s_sigma_3 = interpolate_at_h(plonk, sigma_3, plonk->h_len);
+  POLY f_a_x = poly_zero();
+  POLY f_b_x = poly_zero();
+  POLY f_c_x = poly_zero();
+  POLY q_o_x = poly_zero();
+  POLY q_m_x = poly_zero();
+  POLY q_l_x = poly_zero();
+  POLY q_r_x = poly_zero();
+  POLY q_c_x = poly_zero();
+  POLY s_sigma_1x = poly_zero();
+  POLY s_sigma_2x = poly_zero();
+  POLY s_sigma_3x = poly_zero();
 
-  free(sigma_1);
-  free(sigma_2);
-  free(sigma_3);
+  // For round 1
+  POLY a_x = poly_zero();
+  POLY b_x = poly_zero();
+  POLY c_x = poly_zero();
 
-  // step 4: round 1 - eval a(x), b(x), c(x) at s
-  /* ------------------------------------------------------- */
+  // Accumulator polynomial
+  POLY acc_x = poly_zero();
+
+  // Z polynomial
+  POLY z_x = poly_zero();
+
+  // Lagrange
+  POLY l_1_x = poly_zero();
+
+  // Our t_x polynomial, plus partials
+  POLY t_x_numer = poly_zero();
+  POLY t_x = poly_zero();
+  POLY remainder = poly_zero();
+
+  // Sliced polynomials
+  POLY t_lo_x = poly_zero();
+  POLY t_mid_x = poly_zero();
+  POLY t_hi_x = poly_zero();
+
+  // R polynomials
+  POLY r_1_x = poly_zero();
+  POLY r_2_x = poly_zero();
+  POLY r_3_x = poly_zero();
+  POLY r_4_x = poly_zero();
+  POLY r_x = poly_zero();
+
+  // For final step
+  POLY w_z_x = poly_zero();
+  POLY w_z_x_quo = poly_zero();
+  POLY w_z_omega_x = poly_zero();
+
+  POLY t_mid_x_z = poly_zero();
+  POLY t_hi_x_z = poly_zero();
+
+  f_a_x = interpolate_at_h(plonk, assignments->a, plonk->h_len);
+  f_b_x = interpolate_at_h(plonk, assignments->b, plonk->h_len);
+  f_c_x = interpolate_at_h(plonk, assignments->c, plonk->h_len);
+  q_o_x = interpolate_at_h(plonk, constraints->q_o, plonk->h_len);
+  q_m_x = interpolate_at_h(plonk, constraints->q_m, plonk->h_len);
+  q_l_x = interpolate_at_h(plonk, constraints->q_l, plonk->h_len);
+  q_r_x = interpolate_at_h(plonk, constraints->q_r, plonk->h_len);
+  q_c_x = interpolate_at_h(plonk, constraints->q_c, plonk->h_len);
+  s_sigma_1x = interpolate_at_h(plonk, sigma_1, plonk->h_len);
+  s_sigma_2x = interpolate_at_h(plonk, sigma_2, plonk->h_len);
+  s_sigma_3x = interpolate_at_h(plonk, sigma_3, plonk->h_len);
+
+  // Once we have s_sigma_1x, etc., we can free sigma arrays
+  free(sigma_1); sigma_1 = NULL;
+  free(sigma_2); sigma_2 = NULL;
+  free(sigma_3); sigma_3 = NULL;
+
+  // -------------------------------
+  // 4. Round 1: a_x, b_x, c_x
+  // -------------------------------
   HF b1 = rand[0], b2 = rand[1], b3 = rand[2], b4 = rand[3], b5 = rand[4], b6 = rand[5];
+
   // a_x = (b2 + b1*x) * z_h_x + f_a_x
   HF a_blinding_coeffs[] = {b2, b1};
-  POLY a_blinding_poly  = poly_new(a_blinding_coeffs, 2);
-  POLY a_x_blinded = poly_mul(&a_blinding_poly, &plonk->z_h_x);
-  POLY a_x = poly_add(&a_x_blinded, &f_a_x);
+  POLY a_blind_poly  = poly_new(a_blinding_coeffs, 2);
+  POLY a_x_blinded = poly_mul(&a_blind_poly, &plonk->z_h_x);
+  a_x = poly_add(&a_x_blinded, &f_a_x);
 
   // b_x = (b4 + b3*x) * z_h_x + f_b_x
   HF b_blinding_coeffs[] = {b4, b3};
-  POLY b_blinding_poly  = poly_new(b_blinding_coeffs, 2);
-  POLY b_x_blinded = poly_mul(&b_blinding_poly, &plonk->z_h_x);
-  POLY b_x = poly_add(&b_x_blinded, &f_b_x);
+  POLY b_blind_poly  = poly_new(b_blinding_coeffs, 2);
+  POLY b_x_blinded = poly_mul(&b_blind_poly, &plonk->z_h_x);
+  b_x = poly_add(&b_x_blinded, &f_b_x);
 
   // c_x = (b6 + b5*x) * z_h_x + f_c_x
   HF c_blinding_coeffs[] = {b6, b5};
-  POLY c_blinding_poly  = poly_new(c_blinding_coeffs, 2);
-  POLY c_x_blinded = poly_mul(&c_blinding_poly, &plonk->z_h_x);
-  POLY c_x = poly_add(&c_x_blinded, &f_c_x);
+  POLY c_blind_poly  = poly_new(c_blinding_coeffs, 2);
+  POLY c_x_blinded = poly_mul(&c_blind_poly, &plonk->z_h_x);
+  c_x = poly_add(&c_x_blinded, &f_c_x);
 
-  // output of first step
+  // Evaluate at s
   G1 a_s = srs_eval_at_s(&plonk->srs, &a_x);
   G1 b_s = srs_eval_at_s(&plonk->srs, &b_x);
   G1 c_s = srs_eval_at_s(&plonk->srs, &c_x);
 
-  // cleaning up
+  // Free only the temporary polynomials used in building a_x, b_x, c_x
+  poly_free(&a_blind_poly);
+  poly_free(&a_x_blinded);
+  poly_free(&b_blind_poly);
+  poly_free(&b_x_blinded);
+  poly_free(&c_blind_poly);
+  poly_free(&c_x_blinded);
+
+  // Also we can now free f_a_x, f_b_x, f_c_x if we’re done with them:
   poly_free(&f_a_x);
   poly_free(&f_b_x);
   poly_free(&f_c_x);
-  poly_free(&a_blinding_poly);
-  poly_free(&a_x_blinded);
-  poly_free(&b_blinding_poly);
-  poly_free(&b_x_blinded);
-  poly_free(&c_blinding_poly);
-  poly_free(&c_x_blinded);
 
-  // round 2 - eval the accumulator vector polynomial at s
-  /* ------------------------------------------------------- */
+  // -------------------------------
+  // 5. Round 2: accumulator vector
+  // -------------------------------
   // check https://vitalik.ca/general/2019/09/22/plonk.html
 
   // initialize the accumulator vector with 1
@@ -328,8 +400,9 @@ PROOF plonk_prove(
   HF *acc = (HF *)malloc(n * sizeof(HF));
   if (!acc) {
     fprintf(stderr, "Memory allocation failed for accumulator vector\n");
-    exit(EXIT_FAILURE);
+    goto cleanup;
   }
+
   acc[0] = hf_one();
   for (size_t i = 1; i < n; i++) {
     // assignments at positoin i - 1
@@ -350,9 +423,9 @@ PROOF plonk_prove(
 		      );
 
     // s_sigma evaluations at omega_pow
-    HF s_sigma_1_eval = poly_eval(&s_sigma_1, omega_pow);
-    HF s_sigma_2_eval = poly_eval(&s_sigma_2, omega_pow);
-    HF s_sigma_3_eval = poly_eval(&s_sigma_3, omega_pow);
+    HF s_sigma_1_eval = poly_eval(&s_sigma_1x, omega_pow);
+    HF s_sigma_2_eval = poly_eval(&s_sigma_2x, omega_pow);
+    HF s_sigma_3_eval = poly_eval(&s_sigma_3x, omega_pow);
 
     HF numer = hf_mul(
         hf_mul(
@@ -367,10 +440,11 @@ PROOF plonk_prove(
   }
 
   // interpolate accumualtor vector
-  POLY acc_x = interpolate_at_h(plonk, acc, plonk->h_len);;
+  acc_x = interpolate_at_h(plonk, acc, plonk->h_len);;
   free(acc);
+  acc = NULL;
 
-  // check that acc_x evaluated at omega^n is 1
+  // check that acc_x(omega^n) == 1
   HF omega_n = hf_pow(omega, n);
   HF acc_x_eval = poly_eval(&acc_x, omega_n);
   assert(hf_equal(acc_x_eval, hf_one()));
@@ -380,7 +454,7 @@ PROOF plonk_prove(
   HF z_blinding_coeffs[] = {b9, b8, b7};
   POLY z_blinding_poly = poly_new(z_blinding_coeffs, 3);
   POLY z_blinded = poly_mul(&z_blinding_poly, &plonk->z_h_x);
-  POLY z_x = poly_add(&z_blinded, &acc_x);
+  z_x = poly_add(&z_blinded, &acc_x);
 
   // output of second step
   // evaluate z_x at s
@@ -390,16 +464,20 @@ PROOF plonk_prove(
   poly_free(&z_blinding_poly);
   poly_free(&z_blinded);
 
-  // step 6: compute the quotient polynomial t(x)
-  // compute lagrange polynomial L1(x)
+
+  // -------------------------------
+  // 6. Compute t(x)
+  // -------------------------------
+  // build L1(x)
   HF *lagrange_vector = (HF *)calloc(plonk->h_len, sizeof(HF));
   if (!lagrange_vector) {
     fprintf(stderr, "Memory allocation failed for lagrange_vector\n");
     exit(EXIT_FAILURE);
   }
   lagrange_vector[0] = hf_one(); // L1(omega^0) = 1, rest are 0
-  POLY l_1_x = interpolate_at_h(plonk, lagrange_vector, plonk->h_len);
+  l_1_x = interpolate_at_h(plonk, lagrange_vector, plonk->h_len);
   free(lagrange_vector);
+  lagrange_vector = NULL;
 
   // compute p_i_x (public input polynomial)
   // assuming no public inputs for simplicity
@@ -410,15 +488,19 @@ PROOF plonk_prove(
   POLY a_x_b_x = poly_mul(&a_x, &b_x);
   POLY a_x_b_x_q_m_x = poly_mul(&a_x_b_x, &q_m_x);
   poly_free(&a_x_b_x);
+
   POLY a_x_q_l_x = poly_mul(&a_x, &q_l_x);
   POLY b_x_q_r_x = poly_mul(&b_x, &q_r_x);
   POLY c_x_q_o_x = poly_mul(&c_x, &q_o_x);
+
   POLY sum1 = poly_add(&a_x_b_x_q_m_x, &a_x_q_l_x);
   poly_free(&a_x_b_x_q_m_x);
   poly_free(&a_x_q_l_x);
+
   POLY sum2 = poly_add(&b_x_q_r_x, &c_x_q_o_x);
   poly_free(&b_x_q_r_x);
   poly_free(&c_x_q_o_x);
+
   POLY t_1_z_h = poly_add(&sum1, &sum2);
   poly_free(&sum1);
   poly_free(&sum2);
@@ -454,15 +536,15 @@ PROOF plonk_prove(
   // b_x_beta_s_sigma2_x_gamma *
   // c_x_teta_s_sigma3_x_gamma *
   // &z_omega_x
-  POLY beta_s_sigma1 = poly_scale(&s_sigma_1, beta);
+  POLY beta_s_sigma1 = poly_scale(&s_sigma_1x, beta);
   POLY a_x_beta_s_sigma1 = poly_add(&a_x, &beta_s_sigma1);
   POLY a_x_beta_s_sigma1_gamma = poly_add_hf(&a_x_beta_s_sigma1, gamma);
   POLY alpha_a_x_beta_s_sigma1_gamma = poly_scale(&a_x_beta_s_sigma1_gamma, alpha);
-  POLY beta_s_sigma2 = poly_scale(&s_sigma_2, beta);
+  POLY beta_s_sigma2 = poly_scale(&s_sigma_2x, beta);
   POLY b_x_beta_s_sigma2 = poly_add(&b_x, &beta_s_sigma2);
   POLY b_x_beta_s_sigma2_gamma = poly_add_hf(&b_x_beta_s_sigma2, gamma);
 
-  POLY beta_s_sigma3 = poly_scale(&s_sigma_3, beta);
+  POLY beta_s_sigma3 = poly_scale(&s_sigma_3x, beta);
   POLY c_x_beta_s_sigma3 = poly_add(&c_x, &beta_s_sigma3);
   POLY c_x_beta_s_sigma3_gamma = poly_add_hf(&c_x_beta_s_sigma3, gamma);
 
@@ -470,12 +552,15 @@ PROOF plonk_prove(
   HF *coeffs = (HF *)malloc(z_x.len * sizeof(HF));
   if (!coeffs) {
     fprintf(stderr, "Memory allocation failed for coeffs\n");
-    exit(EXIT_FAILURE);
+    goto cleanup;
   }
   for (size_t i = 0; i < z_x.len; i++) {
     coeffs[i] = hf_mul(z_x.coeffs[i], hf_pow(omega, i));
   }
   POLY z_omega_x = poly_new(coeffs, z_x.len);
+  free(coeffs);
+  coeffs = NULL;
+
   POLY t_3_z_h = poly_mul(&alpha_a_x_beta_s_sigma1_gamma, &b_x_beta_s_sigma2_gamma);
   t_3_z_h = poly_mul(&t_3_z_h, &c_x_beta_s_sigma3_gamma);
   t_3_z_h = poly_mul(&t_3_z_h, &z_omega_x);
@@ -486,7 +571,6 @@ PROOF plonk_prove(
   poly_free(&b_x_beta_s_sigma2);
   poly_free(&beta_s_sigma3);
   poly_free(&c_x_beta_s_sigma3);
-  free(coeffs);
 
   // compute t_4_z_h
   HF neg_one[1];
@@ -496,25 +580,24 @@ PROOF plonk_prove(
   POLY alhpa_2_z_x_1 = poly_scale(&z_x_1, hf_pow(alpha, 2));
   POLY t_4_z_h = poly_mul(&alhpa_2_z_x_1, &l_1_x);
 
+  // build t_x_numer = t_1_z_h + t_2_z_h - t_3_z_h + t_4_z_h
+  t_x_numer = poly_add(&t_1_z_h, &t_2_z_h);
+  t_x_numer = poly_sub(&t_x_numer, &t_3_z_h);
+  t_x_numer = poly_add(&t_x_numer, &t_4_z_h);
+
+  poly_free(&t_1_z_h);
+  poly_free(&t_2_z_h);
+  poly_free(&t_3_z_h);
+  poly_free(&t_4_z_h);
   poly_free(&_1);
   poly_free(&z_x_1);
   poly_free(&alhpa_2_z_x_1);
 
-  POLY t_x_numer = poly_add(&t_1_z_h, &t_2_z_h);
-  poly_free(&t_1_z_h);
-  poly_free(&t_2_z_h);
-  t_x_numer = poly_sub(&t_x_numer, &t_3_z_h);
-  poly_free(&t_3_z_h);
-  t_x_numer = poly_add(&t_x_numer, &t_4_z_h);
-  poly_free(&t_4_z_h);
-
-  POLY t_x;
-  POLY remainder;
   poly_divide(&t_x_numer, &plonk->z_h_x, &t_x, &remainder);
-  poly_free(&t_x_numer);
   if (!poly_is_zero(&remainder)) {
     fprintf(stderr, "Non-zero remainder in t(x) division\n");
-    exit(EXIT_FAILURE);
+    poly_free(&remainder);
+    goto cleanup;
   }
   poly_free(&remainder);
 
@@ -522,9 +605,9 @@ PROOF plonk_prove(
   size_t degree = t_x.len;
   size_t part_size = n + 2;
 
-  POLY t_lo_x = poly_slice(&t_x, 0, part_size);
-  POLY t_mid_x = poly_slice(&t_x, part_size, 2 * part_size);
-  POLY t_hi_x = poly_slice(&t_x, 2 * part_size, degree);
+  t_lo_x = poly_slice(&t_x, 0, part_size);
+  t_mid_x = poly_slice(&t_x, part_size, 2 * part_size);
+  t_hi_x = poly_slice(&t_x, 2 * part_size, degree);
 
   // step 8: evaluate t_lo_x, t_mid_x, t_hi_x at s
   G1 t_lo_s = srs_eval_at_s(&plonk->srs, &t_lo_x);
@@ -535,8 +618,8 @@ PROOF plonk_prove(
   HF a_z = poly_eval(&a_x, z);
   HF b_z = poly_eval(&b_x, z);
   HF c_z = poly_eval(&c_x, z);
-  HF s_sigma_1_z = poly_eval(&s_sigma_1, z);
-  HF s_sigma_2_z = poly_eval(&s_sigma_2, z);
+  HF s_sigma_1_z = poly_eval(&s_sigma_1x, z);
+  HF s_sigma_2_z = poly_eval(&s_sigma_2x, z);
   HF t_z = poly_eval(&t_x, z);
   HF z_omega_z = poly_eval(&z_omega_x, z);
   poly_free(&t_x);
@@ -546,7 +629,7 @@ PROOF plonk_prove(
   POLY a_z_q_l_x = poly_scale(&q_l_x, a_z);
   POLY b_z_q_r_x = poly_scale(&q_r_x, b_z);
   POLY c_z_q_o_x = poly_scale(&q_o_x, c_z);
-  POLY r_1_x = poly_add(&a_z_b_z_q_m_x, &a_z_q_l_x);
+  r_1_x = poly_add(&a_z_b_z_q_m_x, &a_z_q_l_x);
   r_1_x = poly_add(&r_1_x, &b_z_q_r_x);
   r_1_x = poly_add(&r_1_x, &c_z_q_o_x);
 
@@ -554,27 +637,27 @@ PROOF plonk_prove(
   HF a_z_beta_z_gamma = hf_add(hf_add(a_z, hf_mul(beta, z)), gamma);
   HF b_z_beta_k1_z_gamma = hf_add(hf_add(b_z, hf_mul(hf_mul(beta, k1), z)), gamma);
   HF c_z_beta_k2_z_gamma = hf_add(hf_add(c_z, hf_mul(hf_mul(beta, k2), z)), gamma);
-  POLY r_2_x = poly_scale(&z_x,
-                          hf_mul(
-                              hf_mul(
-                                  hf_mul(a_z_beta_z_gamma, b_z_beta_k1_z_gamma),
-                                  c_z_beta_k2_z_gamma),
-                              alpha));
+  r_2_x = poly_scale(&z_x,
+                     hf_mul(
+                         hf_mul(
+                             hf_mul(a_z_beta_z_gamma, b_z_beta_k1_z_gamma),
+                             c_z_beta_k2_z_gamma),
+                         alpha));
 
   // compute r_3_x
-  POLY s_sigma_3_beta_z_omega_z = poly_scale(&s_sigma_3, hf_mul(beta, z_omega_z));
+  POLY s_sigma_3_beta_z_omega_z = poly_scale(&s_sigma_3x, hf_mul(beta, z_omega_z));
   HF a_z_beta_s_sigma_1_z_gamma = hf_add(a_z, hf_add(hf_mul(beta, s_sigma_1_z), gamma));
   HF b_z_beta_s_sigma_2_z_gamma = hf_add(b_z, hf_add(hf_mul(beta, s_sigma_2_z), gamma));
-  POLY r_3_x = poly_mul(&z_x, &s_sigma_3_beta_z_omega_z);
+  r_3_x = poly_mul(&z_x, &s_sigma_3_beta_z_omega_z);
   r_3_x = poly_scale(&r_3_x,
                      hf_mul(
                          hf_mul(a_z_beta_s_sigma_1_z_gamma, b_z_beta_s_sigma_2_z_gamma),
                          alpha));
 
   // compute r_4_x
-  POLY r_4_x = poly_scale(&z_x, hf_mul(poly_eval(&l_1_x, z), hf_pow(alpha, 2)));
+  r_4_x = poly_scale(&z_x, hf_mul(poly_eval(&l_1_x, z), hf_pow(alpha, 2)));
 
-  POLY r_x = poly_add(&r_1_x, &r_2_x);
+  r_x = poly_add(&r_1_x, &r_2_x);
   r_x = poly_add(&r_x, &r_3_x);
   r_x = poly_add(&r_x, &r_4_x);
 
@@ -593,9 +676,9 @@ PROOF plonk_prove(
   // using so far and we output commitments to them.
 
   // compute opening proof polynomial w_z_x
-  POLY t_mid_x_z = poly_scale(&t_mid_x, hf_pow(z, n+2));
-  POLY t_hi_x_z = poly_scale(&t_hi_x, hf_pow(z, 2*n+4));
-  POLY w_z_x = poly_add(&t_lo_x, &t_mid_x_z);
+  t_mid_x_z = poly_scale(&t_mid_x, hf_pow(z, n+2));
+  t_hi_x_z = poly_scale(&t_hi_x, hf_pow(z, 2*n+4));
+  w_z_x = poly_add(&t_lo_x, &t_mid_x_z);
   w_z_x = poly_add(&w_z_x, &t_hi_x_z);
   w_z_x = poly_add_hf(&w_z_x, hf_neg(t_z));
   POLY r_x_r_z_v = poly_add_hf(&r_x, hf_neg(r_z));
@@ -606,9 +689,9 @@ PROOF plonk_prove(
   b_x_b_z_v = poly_scale(&b_x_b_z_v, hf_pow(v, 3));
   POLY c_x_c_z_v = poly_add_hf(&c_x, hf_neg(c_z));
   c_x_c_z_v = poly_scale(&c_x_c_z_v, hf_pow(v, 4));
-  POLY s_sigma_1_1_z_v = poly_add_hf(&s_sigma_1, hf_neg(s_sigma_1_z));
+  POLY s_sigma_1_1_z_v = poly_add_hf(&s_sigma_1x, hf_neg(s_sigma_1_z));
   s_sigma_1_1_z_v = poly_scale(&s_sigma_1_1_z_v, hf_pow(v, 5));
-  POLY s_sigma_2_2_z_v = poly_add_hf(&s_sigma_2, hf_neg(s_sigma_2_z));
+  POLY s_sigma_2_2_z_v = poly_add_hf(&s_sigma_2x, hf_neg(s_sigma_2_z));
   s_sigma_2_2_z_v = poly_scale(&s_sigma_2_2_z_v, hf_pow(v, 6));
   w_z_x = poly_add(&w_z_x, &r_x_r_z_v);
   w_z_x = poly_add(&w_z_x, &a_x_a_z_v);
@@ -619,14 +702,14 @@ PROOF plonk_prove(
 
   HF coeffs_denom1[] = {hf_neg(z), hf_one()};
   POLY denom1 = poly_new(coeffs_denom1, 2);
-  POLY w_z_x_quo, rem1;
+  POLY rem1;
   poly_divide(&w_z_x, &denom1, &w_z_x_quo, &rem1);
   assert(poly_is_zero(&rem1));
 
   POLY z_x_z_omega_z = poly_add_hf(&z_x, hf_neg(z_omega_z));
   HF coeffs_denom2[] = {hf_mul(hf_neg(z), omega), hf_one()};
   POLY denom2 = poly_new(coeffs_denom2, 2);
-  POLY w_z_omega_x, rem2;
+  POLY rem2;
   poly_divide(&z_x_z_omega_z, &denom2, &w_z_omega_x, &rem2);
   assert(poly_is_zero(&rem2));
 
@@ -634,7 +717,6 @@ PROOF plonk_prove(
   G1 w_z_s = srs_eval_at_s(&plonk->srs, &w_z_x_quo);
   G1 w_z_omega_s = srs_eval_at_s(&plonk->srs, &w_z_omega_x);
 
-  PROOF proof;
   proof.a_s = a_s;
   proof.b_s = b_s;
   proof.c_s = c_s;
@@ -652,15 +734,26 @@ PROOF plonk_prove(
   proof.r_z = r_z;
   proof.z_omega_z = z_omega_z;
 
+  success = true;
+
+cleanup:
+  // -------------------------------
+  // Free arrays
+  // -------------------------------
+  if (sigma_1) { free(sigma_1); sigma_1 = NULL; }
+  if (sigma_2) { free(sigma_2); sigma_2 = NULL; }
+  if (sigma_3) { free(sigma_3); sigma_3 = NULL; }
+
   poly_free(&t_lo_x);
   poly_free(&t_mid_x);
   poly_free(&t_hi_x);
   poly_free(&z_x);
   poly_free(&l_1_x);
   poly_free(&z_omega_x);
-  poly_free(&s_sigma_1);
-  poly_free(&s_sigma_2);
-  poly_free(&s_sigma_3);
+  poly_free(&s_sigma_1x);
+  poly_free(&s_sigma_2x);
+  poly_free(&s_sigma_3x);
+  poly_free(&t_x_numer);
   poly_free(&r_1_x);
   poly_free(&r_2_x);
   poly_free(&r_3_x);
@@ -668,6 +761,11 @@ PROOF plonk_prove(
   poly_free(&r_x);
   poly_free(&t_mid_x_z);
   poly_free(&t_hi_x_z);
+
+  // If not successful, zero out proof:
+  if (!success) {
+    memset(&proof, 0, sizeof(PROOF));
+  }
 
   return proof;
 }
