@@ -34,8 +34,8 @@ MATRIX matrix_new(HF *v, size_t m, size_t n) {
     fprintf(stderr, "Memory allocation failed in matrix_new\n");
     exit(EXIT_FAILURE);
   }
-  for (size_t i = 0; i < size; i++)
-    result.v[i] = v[i];
+  // Use memcpy instead of loop for better performance
+  memcpy(result.v, v, size * sizeof(HF));
   return result;
 }
 
@@ -80,20 +80,44 @@ MATRIX matrix_add(const MATRIX *a, const MATRIX *b) {
 
 MATRIX matrix_mul(const MATRIX *a, const MATRIX *b) {
   if (a->n != b->m) {
-       fprintf(stderr, "Matrix multiplication error: Dimensions (%zu x %zu) and (%zu x %zu) incompatible.\n", a->m, a->n, b->m, b->n);
+    fprintf(stderr, "Matrix multiplication error: Dimensions (%zu x %zu) and (%zu x %zu) incompatible.\n", 
+            a->m, a->n, b->m, b->n);
     exit(EXIT_FAILURE);
   }
+  
   MATRIX result = matrix_zero(a->m, b->n);
-  for (size_t i = 0; i < a->m; i++) {
-    for (size_t j = 0; j < b->n; j++) {
-      HF sum = hf_new(0);
-      for (size_t k = 0; k < a->n; k++) {
-        HF product = hf_mul(matrix_get(a, i, k), matrix_get(b, k, j));
-        sum = hf_add(sum, product);
+  
+  // Optimize matrix multiplication using cache-friendly access patterns
+  // Use block matrix multiplication to improve cache locality
+  const size_t block_size = 8; // Adjust based on cache size
+  
+  for (size_t i = 0; i < a->m; i += block_size) {
+    for (size_t j = 0; j < b->n; j += block_size) {
+      for (size_t k = 0; k < a->n; k += block_size) {
+        // Multiply block (i,k) of A with block (k,j) of B
+        const size_t i_end = (i + block_size < a->m) ? i + block_size : a->m;
+        const size_t j_end = (j + block_size < b->n) ? j + block_size : b->n;
+        const size_t k_end = (k + block_size < a->n) ? k + block_size : a->n;
+        
+        for (size_t ii = i; ii < i_end; ii++) {
+          for (size_t jj = j; jj < j_end; jj++) {
+            // Access memory directly to avoid function call overhead
+            const size_t result_idx = jj + ii * b->n;
+            HF sum = result.v[result_idx];
+            
+            for (size_t kk = k; kk < k_end; kk++) {
+              const HF a_val = a->v[kk + ii * a->n];
+              const HF b_val = b->v[jj + kk * b->n];
+              sum = hf_add(sum, hf_mul(a_val, b_val));
+            }
+            
+            result.v[result_idx] = sum;
+          }
+        }
       }
-      matrix_set(&result ,i, j, sum);
     }
   }
+  
   return result;
 }
 

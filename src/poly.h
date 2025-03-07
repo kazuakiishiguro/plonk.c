@@ -18,22 +18,25 @@ typedef struct {
  * len: Length of the input array.
  */
 static POLY poly_new_internal(const HF *coeffs, size_t len) {
-  // Trim trailing zeros
-  while (len > 1 && hf_equal(coeffs[len - 1], hf_zero())) {
-    len--;
+  // Find actual length by trimming trailing zeros
+  size_t actual_len = len;
+  while (actual_len > 1 && hf_equal(coeffs[actual_len - 1], hf_zero())) {
+    actual_len--;
   }
 
   POLY result;
-  result.len = len;
-  result.coeffs = (HF *)malloc(len * sizeof(HF));
+  result.len = actual_len;
+  
+  // Allocate exact memory needed
+  result.coeffs = (HF *)malloc(actual_len * sizeof(HF));
   if (!result.coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_new_internal\n");
     exit(EXIT_FAILURE);
   }
 
-  for (size_t i = 0; i < len; i++) {
-    result.coeffs[i] = coeffs[i];
-  }
+  // Use memcpy for faster copying
+  memcpy(result.coeffs, coeffs, actual_len * sizeof(HF));
+  
   return result;
 }
 
@@ -104,21 +107,48 @@ POLY poly_sub(const POLY *a, const POLY *b) {
 }
 
 POLY poly_mul(const POLY *a, const POLY *b) {
+  // Handle special cases
+  if (a->len == 0 || b->len == 0) {
+    return poly_zero();
+  }
+  if (a->len == 1 && hf_equal(a->coeffs[0], hf_zero())) {
+    return poly_zero();
+  }
+  if (b->len == 1 && hf_equal(b->coeffs[0], hf_zero())) {
+    return poly_zero();
+  }
+  if (a->len == 1 && hf_equal(a->coeffs[0], hf_one())) {
+    return poly_new(b->coeffs, b->len);
+  }
+  if (b->len == 1 && hf_equal(b->coeffs[0], hf_one())) {
+    return poly_new(a->coeffs, a->len);
+  }
+
+  // Regular multiplication
   size_t result_len = a->len + b->len - 1;
   HF *coeffs = (HF *)calloc(result_len, sizeof(HF));
   if (!coeffs) {
     fprintf(stderr, "Memory allocation failed in poly_mul\n");
     exit(EXIT_FAILURE);
   }
+  
+  // Reduce branching in inner loop for better CPU instruction pipelining
   for (size_t i = 0; i < a->len; i++) {
+    const HF a_coeff = a->coeffs[i];
+    if (hf_equal(a_coeff, hf_zero())) continue; // Skip zero coefficients
+    
     for (size_t j = 0; j < b->len; j++) {
-      HF product = hf_mul(a->coeffs[i], b->coeffs[j]);
+      const HF b_coeff = b->coeffs[j];
+      if (hf_equal(b_coeff, hf_zero())) continue; // Skip zero coefficients
+      
+      const HF product = hf_mul(a_coeff, b_coeff);
       coeffs[i + j] = hf_add(coeffs[i + j], product);
     }
   }
-  POLY reuslt = poly_new(coeffs, result_len);
+  
+  POLY result = poly_new(coeffs, result_len);
   free(coeffs);
-  return reuslt;
+  return result;
 }
 
 void poly_divide(const POLY *num, const POLY *den, POLY *quot, POLY *rem) {
@@ -261,13 +291,36 @@ static inline void poly_free(POLY *p) {
   p->len = 0;
 }
 
-// Evaluate polynomial using Horner's method: O(n) with minimal overhead
+// Evaluate polynomial using Horner's method with optimizations
 HF poly_eval(const POLY *p, HF x) {
-  HF y = hf_zero();
-  for (ssize_t i = (ssize_t)p->len - 1; i >= 0; i--) {
+  if (p->len == 0) return hf_zero();
+  if (p->len == 1) return p->coeffs[0];
+  
+  // Horner's method with optimizations for long polynomials
+  HF y = p->coeffs[p->len - 1];
+  
+  // Process 4 coefficients at a time for better instruction-level parallelism
+  ssize_t i = (ssize_t)p->len - 2;
+  for (; i >= 3; i -= 4) {
+    y = hf_mul(y, x);
+    y = hf_add(y, p->coeffs[i]);
+    
+    y = hf_mul(y, x);
+    y = hf_add(y, p->coeffs[i-1]);
+    
+    y = hf_mul(y, x);
+    y = hf_add(y, p->coeffs[i-2]);
+    
+    y = hf_mul(y, x);
+    y = hf_add(y, p->coeffs[i-3]);
+  }
+  
+  // Handle remaining coefficients
+  for (; i >= 0; i--) {
     y = hf_mul(y, x);
     y = hf_add(y, p->coeffs[i]);
   }
+  
   return y;
 }
 
