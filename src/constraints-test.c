@@ -155,7 +155,6 @@ void test_constraints_satisfy() {
   assignments.c[0] = hf_new(6);
   assert(!constraints_satisfy(&constraints, &assignments));
 
-  constraints_free(&constraints);
   free(assignments.a);
   free(assignments.b);
   free(assignments.c);
