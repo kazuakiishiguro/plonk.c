@@ -41,8 +41,55 @@ void test_vector() {
   assert(gf_equal(hundred_cube, three_pow));
 }
 
+void test_corners() {
+  GF zero = gf_zero();
+  GF one = gf_one();
+  GF two = f101(2);
+  GF five = f101(5);
+  GF last = f101(MODULO_GF - 1); // 100
+
+  // Zero interactions
+  assert(gf_equal(five, gf_add(five, zero)));
+  assert(gf_equal(five, gf_sub(five, zero)));
+  assert(gf_equal(zero, gf_sub(five, five)));
+  assert(gf_equal(zero, gf_mul(five, zero)));
+  assert(gf_equal(zero, gf_mul(zero, five)));
+  assert(gf_equal(zero, gf_div(zero, five))); // 0 / non-zero
+  assert(gf_equal(zero, gf_neg(zero)));
+  assert(gf_equal(zero, gf_pow(zero, 5))); // 0^k for k>0
+  assert(gf_equal(one, gf_pow(zero, 0))); // 0^0 convention/implementation = 1
+
+  // One interactions
+  assert(gf_equal(five, gf_mul(five, one)));
+  assert(gf_equal(five, gf_mul(one, five)));
+  assert(gf_equal(five, gf_div(five, one)));
+  assert(gf_equal(one, gf_div(five, five)));
+  assert(gf_equal(one, gf_pow(one, 5)));
+  assert(gf_equal(five, gf_pow(five, 1)));
+  assert(gf_equal(one, gf_inv(one)));
+
+  // Modulus boundaries
+  assert(gf_equal(zero, gf_add(last, one)));
+  assert(gf_equal(last, gf_sub(zero, one))); // Already in test_base
+  assert(gf_equal(last, gf_sub(one, two)));
+
+  // Inverse/Negation
+  assert(gf_equal(one, gf_mul(five, gf_inv(five))));
+  assert(gf_equal(five, gf_neg(gf_neg(five))));
+  assert(gf_equal(zero, gf_add(five, gf_neg(five))));
+
+  // gf_new
+  assert(gf_equal(zero, f101(MODULO_GF)));
+  assert(gf_equal(one, f101(MODULO_GF + 1)));
+  assert(gf_equal(last, f101(-1)));
+  assert(gf_equal(zero, f101(-MODULO_GF)));
+  assert(gf_equal(f101(5), f101(1010 + 5)));
+  assert(gf_equal(f101(96), f101(-1010 - 5)));
+}
+
 int main() {
   test_base();
   test_vector();
+  test_corners();
   return 0;
 }
